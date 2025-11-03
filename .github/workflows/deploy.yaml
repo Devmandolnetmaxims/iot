@@ -42,6 +42,12 @@ jobs:
           rm -f .env .env.*.local *.md *.yml *.yaml .gitignore .gitattributes
           echo "Clean done. .github is safe."
 
+          mkdir -p storage/framework/cache/data
+          mkdir -p storage/framework/sessions
+          mkdir -p storage/framework/views
+          mkdir -p storage/logs
+          mkdir -p storage/app/public
+
       - name: Deploy via SFTP
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
