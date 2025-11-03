@@ -1,0 +1,78 @@
+name: Deploy Laravel App via SFTP
+
+on:
+  push:
+    branches:
+      - backend_dev
+      - backend_staging
+      - backend_preprod
+      - backend_main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Set remote path
+        run: |
+          case "${{ github.ref_name }}" in
+            backend_dev)      echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/dev-api/" >> $GITHUB_ENV ;;
+            backend_staging)  echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/staging-api/" >> $GITHUB_ENV ;;
+            backend_preprod)  echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/preprod-api/" >> $GITHUB_ENV ;;
+            backend_main)     echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/api/" >> $GITHUB_ENV ;;
+            *)        echo "Invalid branch" && exit 1 ;;
+          esac
+
+      # ONLY REMOVE FILES THAT SHOULD NEVER GO TO PRODUCTION
+      # .github is PRESERVED — CI/CD SAFE
+      - name: Clean upload files (KEEP .github)
+        run: |
+          echo "Removing junk files..."
+          rm -rf .git
+          rm -rf node_modules vendor tests
+          rm -rf storage/logs
+          rm -rf storage/framework/cache
+          rm -rf storage/framework/sessions
+          rm -rf storage/framework/views
+          rm -f .env .env.*.local *.md *.yml *.yaml .gitignore .gitattributes
+          echo "Clean done. .github is safe."
+
+      - name: Deploy via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: 22
+          local_path: './'
+          remote_path: ${{ env.REMOTE_PATH }}
+          sftp_only: true
+
+      - name: Run Laravel commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: 22
+          use_insecure_cipher: true
+          script: |
+            cd ${{ env.REMOTE_PATH }} || exit 1
+
+            echo "Installing Composer..."
+            /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+            echo "Running migrations..."
+            php artisan migrate --force
+
+            echo "Caching..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            echo "Deployed successfully!"
