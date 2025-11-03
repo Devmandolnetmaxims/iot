@@ -21,10 +21,10 @@ jobs:
       - name: Set remote path
         run: |
           case "${{ github.ref_name }}" in
-            backend_dev)      echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/dev-api/" >> $GITHUB_ENV ;;
-            backend_staging)  echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/staging-api/" >> $GITHUB_ENV ;;
-            backend_preprod)  echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/preprod-api/" >> $GITHUB_ENV ;;
-            backend_main)     echo "REMOTE_PATH=/home2/netma2bd/public_html/mindovermatter.appswatt.com/api/" >> $GITHUB_ENV ;;
+            backend_dev)      echo "REMOTE_PATH=/home2/netma2bd/public_html/iot.appswatt.com/dev-api/" >> $GITHUB_ENV ;;
+            backend_staging)  echo "REMOTE_PATH=/home2/netma2bd/public_html/iot.appswatt.com/staging-api/" >> $GITHUB_ENV ;;
+            backend_preprod)  echo "REMOTE_PATH=/home2/netma2bd/public_html/iot.appswatt.com/preprod-api/" >> $GITHUB_ENV ;;
+            backend_main)     echo "REMOTE_PATH=/home2/netma2bd/public_html/iot.appswatt.com/api/" >> $GITHUB_ENV ;;
             *)        echo "Invalid branch" && exit 1 ;;
           esac
 
