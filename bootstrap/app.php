@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\Handler;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        //
-    })->create();
+    // ->withExceptions(function (Exceptions $exceptions): void {
+    ->withExceptions(function (Exceptions $exceptions) {
+        // This replaces the need for a custom Handler class
+        $exceptions->renderable(function (AuthenticationException $e, $request) {
+            return response()->json([
+                'message' => 'Unauthenticated.'
+            ], 401);
+        });
+    })
+    ->create();
