@@ -2,11 +2,16 @@
 
 namespace App\Http\Repository\Auth;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\DB;
 use App\Traits\ApiResponseTrait;
 use App\Constants\ApiMessages;
+use App\Helpers\MailHelper;
+use Illuminate\Support\Str;
 use App\Models\User;
+use Carbon\Carbon;
 
 class AuthRepository
 {
@@ -56,7 +61,55 @@ class AuthRepository
         } catch (\Exception $e) {
             return $self->errorResponse(null, ApiMessages::LOGOUT_ERROR, 500);
         }
-        
+    }
+
+    public static function ForgotPassword($request)
+    {
+        $self = new self;
+        $email = $request->email;
+        $user = User::where('email', $email)->first();
+
+        if (!$user) {
+            return  $self->errorResponse(null, ApiMessages::EMAIL_NOT_FOUND, 404);
+        }
+
+        $token = Str::random(60);
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $email],
+            ['token' => $token, 'created_at' => Carbon::now()]
+        );
+
+        $resetUrl = url("/reset-password?token={$token}");
+
+        MailHelper::sendMail($email, 'Reset Your Password', 'emails.reset_password', [
+            'resetUrl' => $resetUrl,
+        ]);
+
+        return $self->successResponse(null, ApiMessages::RESET_LINK_SENT, 200);
+    }
+
+    public static function resetPassword($request)
+    {
+        $record = DB::table('password_reset_tokens')
+            ->where('email', $request->email)
+            ->where('token', $request->token)
+            ->first();
+
+        if (! $record) {
+            return self::errorResponse(null, ApiMessages::INVALID_TOKEN, 400);
+        }
+
+        $user = User::where('email', $request->email)->first();
+        if (! $user) {
+            return self::errorResponse(null, ApiMessages::EMAIL_NOT_FOUND, 404);
+        }
+
+        $user->update(['password' => bcrypt($request->password)]);
+
+        // Delete token after successful reset
+        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+        return self::successResponse(null, ApiMessages::PASSWORD_RESET_SUCCESS, 200);
     }
 
 }
