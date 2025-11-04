@@ -26,4 +26,9 @@ class AuthController extends Controller
     public function forgotPassword(ForgetEmailRequest $request) {
         return AuthRepository::ForgotPassword($request);
     }
+
+    // Reset password
+    public function ResetPassword(Request $request) {
+        return AuthRepository::resetPassword($request);
+    }
 }

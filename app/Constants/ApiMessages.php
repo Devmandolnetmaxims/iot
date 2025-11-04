@@ -33,4 +33,5 @@ class ApiMessages
     public const OTP_VERIFIED = 'OTP verified successfully.';
     public const PASSWORD_RESET_SUCCESS = 'Password has been reset successfully.';
     public const RESET_LINK_SENT = 'Reset link has been sent to your email.';
+    public const INVALID_TOKEN = 'Invalid or expired token.';
 }

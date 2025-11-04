@@ -88,28 +88,34 @@ class AuthRepository
         return $self->successResponse(null, ApiMessages::RESET_LINK_SENT, 200);
     }
 
-    public static function resetPassword($request)
+    public static function ResetPassword($request)
     {
+        $self = new self;
+
+        // Find the reset token record
         $record = DB::table('password_reset_tokens')
-            ->where('email', $request->email)
             ->where('token', $request->token)
             ->first();
 
         if (! $record) {
-            return self::errorResponse(null, ApiMessages::INVALID_TOKEN, 400);
+            return $self->errorResponse(null, ApiMessages::INVALID_TOKEN, 400);
         }
 
-        $user = User::where('email', $request->email)->first();
+        // Find the user linked to this token
+        $user = User::where('email', $record->email)->first();
+
         if (! $user) {
-            return self::errorResponse(null, ApiMessages::EMAIL_NOT_FOUND, 404);
+            return $self->errorResponse(null, ApiMessages::EMAIL_NOT_FOUND, 404);
         }
 
+        // Update password
         $user->update(['password' => bcrypt($request->password)]);
 
-        // Delete token after successful reset
-        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+        // Delete used token
+        DB::table('password_reset_tokens')->where('email', $record->email)->delete();
 
-        return self::successResponse(null, ApiMessages::PASSWORD_RESET_SUCCESS, 200);
+        return $self->successResponse(null, ApiMessages::PASSWORD_RESET_SUCCESS, 200);
     }
+
 
 }
