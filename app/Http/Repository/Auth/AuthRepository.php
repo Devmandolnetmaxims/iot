@@ -17,7 +17,7 @@ class AuthRepository
 {
     use ApiResponseTrait;
     // Register new user
-   public static function Login($request) 
+    public static function Login($request) 
     {
         $self = new self;
         // Find user by email

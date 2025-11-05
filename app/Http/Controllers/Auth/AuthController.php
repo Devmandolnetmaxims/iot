@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\ForgetEmailRequest;
 use App\Http\Repository\Auth\AuthRepository;
 use App\Http\Requests\Auth\OtpVerifyRequest;
@@ -28,7 +29,7 @@ class AuthController extends Controller
     }
 
     // Reset password
-    public function ResetPassword(Request $request) {
+    public function ResetPassword(ResetPasswordRequest $request) {
         return AuthRepository::resetPassword($request);
     }
 }
