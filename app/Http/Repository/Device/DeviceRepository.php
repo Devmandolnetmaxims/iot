@@ -1,0 +1,160 @@
+<?php
+
+namespace App\Http\Repository\Device;
+
+use App\Models\Device;
+use App\Models\TestMuguhwa;
+use App\Constants\ApiMessages;
+use App\Traits\ApiResponseTrait;
+
+
+class DeviceRepository
+{
+    use ApiResponseTrait;
+
+    // public static function Index($request)
+    // {
+    //     $self = new self;
+    //     $query = Device::query();
+
+    //     // 🔹 Filters
+    //     if ($request->filled('car')) {
+    //         $query->where('CAR', $request->car);
+    //     }
+    //     if ($request->filled('type')) {
+    //         $query->where('TYPE', $request->type);
+    //     }
+    //     if ($request->filled('car_link')) {
+    //         $query->where('CAR_LINK', $request->car_link);
+    //     }
+
+    //     // 🔹 Date filters
+    //     if ($request->filled('start_date') && $request->filled('end_date')) {
+    //         $query->whereBetween('INSTALL', [$request->start_date, $request->end_date]);
+    //     } elseif ($request->filled('INSTALL')) {
+    //         $query->whereDate('INSTALL', $request->INSTALL);
+    //     }
+
+    //     // 🔹 Partial matches
+    //     if ($request->filled('p1')) {
+    //         $query->where('P1', 'LIKE', "%{$request->p1}%");
+    //     }
+    //     if ($request->filled('p2')) {
+    //         $query->where('P2', 'LIKE', "%{$request->p2}%");
+    //     }
+
+    //     // 🔹 Pagination logic
+    //     $perPage = $request->input('per_page', 10); // Default items per page
+    //     $page = $request->input('page', 1);         // Default to page 1
+
+    //     $devices = $query->paginate($perPage, ['*'], 'page', $page);
+
+    //     // 🔹 Custom structured response
+    //     $response = [
+    //         'data' => $devices->items(),
+    //         'pagination' => [
+    //             'page' => $devices->currentPage(),
+    //             'per_page' => $devices->perPage(),
+    //             'total' => $devices->total(),
+    //             'last_page' => $devices->lastPage(),
+    //         ]
+    //     ];
+
+    //     return $self->successResponse($response, ApiMessages::DEVICE_GET_SUCCESS, 200);
+    // }
+
+    public static function Index($request)
+    {
+        $self = new self;
+        $query = Device::query();
+
+        // 🔹 Filters
+        if ($request->filled('car')) {
+            $query->where('CAR', $request->car);
+        }
+        if ($request->filled('type')) {
+            $query->where('TYPE', $request->type);
+        }
+        if ($request->filled('car_link')) {
+            $query->where('CAR_LINK', $request->car_link);
+        }
+
+        // 🔹 Date filters
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('INSTALL', [$request->start_date, $request->end_date]);
+        } elseif ($request->filled('INSTALL')) {
+            $query->whereDate('INSTALL', $request->INSTALL);
+        }
+
+        // 🔹 Partial matches
+        if ($request->filled('p1')) {
+            $query->where('P1', 'LIKE', "%{$request->p1}%");
+        }
+        if ($request->filled('p2')) {
+            $query->where('P2', 'LIKE', "%{$request->p2}%");
+        }
+
+        // 🔹 Pagination
+        $perPage = $request->input('per_page', 10);
+        $page = $request->input('page', 1);
+
+        $devices = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // 🔹 Attach latest trigger data
+        $devices->getCollection()->transform(function ($device) {
+            $latestTrigger = TestMuguhwa::where('DEVICE', $device->DEVICE)
+                ->orderBy('TIME', 'desc')
+                ->first();
+
+            $device->last_trigger = $latestTrigger;
+            return $device;
+        });
+
+        // 🔹 Custom structured response
+        $response = [
+            'data' => $devices->items(),
+            'pagination' => [
+                'page' => $devices->currentPage(),
+                'per_page' => $devices->perPage(),
+                'total' => $devices->total(),
+                'last_page' => $devices->lastPage(),
+            ]
+        ];
+
+        return $self->successResponse($response, ApiMessages::DEVICE_GET_SUCCESS, 200);
+    }
+
+
+    public static function Create($request)
+    {
+        $self = new self;
+        // Create a new record
+        $device = Device::create($request->all());
+
+        return $self->successResponse($device, ApiMessages::DEVICE_CREATED, 201);
+    }
+
+    public static function Update($request, $id)
+    {
+        $self = new self;
+
+        // Find the existing record by DEVICE (or whichever key identifies it)
+        $device = Device::where('DEVICE', $id)->first();
+
+        if (! $device) {
+            return $self->errorResponse(null, ApiMessages::DEVICE_NOT_FOUND, 404);
+        }
+
+        // Exclude DEVICE from update payload
+        $updateData = $request->except(['DEVICE']);
+
+        // Update only other fields
+        $device->update($updateData);
+
+        return $self->successResponse($device, ApiMessages::DEVICE_UPDATED, 200);
+    }
+
+    // public static function Delete($id){
+
+    // }
+}
