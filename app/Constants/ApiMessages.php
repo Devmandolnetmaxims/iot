@@ -41,4 +41,11 @@ class ApiMessages
     public const DEVICE_DELETED = 'Device deleted successfully.';
     public const DEVICE_GET_SUCCESS = 'Device fetched successfully.';
     public const DEVICE_NOT_FOUND = 'Device not found.';
+    
+    // Device Link message
+    public const DEVICE_LINK_CREATED = 'Device link created successfully.';
+    public const DEVICE_LINK_UPDATED = 'Device link updated successfully.';
+    public const DEVICE_LINK_DELETED = 'Device link deleted successfully.';
+    public const DEVICE_LINK_GET_SUCCESS = 'Device link fetched successfully.';
+    public const DEVICE_LINK_NOT_FOUND = 'Device link not found.';
 }
