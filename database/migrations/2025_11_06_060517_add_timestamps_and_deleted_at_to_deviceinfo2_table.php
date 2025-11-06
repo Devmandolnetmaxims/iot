@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('deviceinfo2', function (Blueprint $table) {
+        Schema::table('DeviceInfo2', function (Blueprint $table) {
             // Adds created_at and updated_at columns
             $table->timestamps();
 
@@ -25,7 +25,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('deviceinfo2', function (Blueprint $table) {
+        Schema::table('DeviceInfo2', function (Blueprint $table) {
             $table->dropTimestamps();   // Drops created_at and updated_at
             $table->dropSoftDeletes();  // Drops deleted_at
         });
