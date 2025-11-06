@@ -10,7 +10,7 @@ class Device extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'deviceinfo2'; // your table name
+    protected $table = 'DeviceInfo2'; // your table name
 
     protected $primaryKey = 'DEVICE'; // use DEVICE as unique identifier (or whatever works best)
     public $incrementing = false;     // since DEVICE is not auto-increment
