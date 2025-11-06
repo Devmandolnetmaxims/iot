@@ -34,4 +34,11 @@ class ApiMessages
     public const PASSWORD_RESET_SUCCESS = 'Password has been reset successfully.';
     public const RESET_LINK_SENT = 'Reset link has been sent to your email.';
     public const INVALID_TOKEN = 'Invalid or expired token.';
+
+    // Device messages
+    public const DEVICE_CREATED = 'Device created successfully.';
+    public const DEVICE_UPDATED = 'Device updated successfully.';
+    public const DEVICE_DELETED = 'Device deleted successfully.';
+    public const DEVICE_GET_SUCCESS = 'Device fetched successfully.';
+    public const DEVICE_NOT_FOUND = 'Device not found.';
 }
