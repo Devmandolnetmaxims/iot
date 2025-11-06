@@ -23,4 +23,9 @@ class DeviceController extends Controller
     public function update(Request $request, $id) {
         return DeviceRepository::Update($request, $id);
     }
+
+    // Delete
+    public function destroy($id) {
+        return DeviceRepository::Delete($id);
+    }
 }
