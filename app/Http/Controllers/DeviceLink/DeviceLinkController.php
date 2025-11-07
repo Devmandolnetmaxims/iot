@@ -18,4 +18,14 @@ class DeviceLinkController extends Controller
     public function store(DeviceLinkCreateRequest $request) {
         return DeviceLinkRepository::CreateDeviceLink($request->all());
     }
+
+    // Update function
+    public function update(Request $request, $id) {
+        return DeviceLinkRepository::UpdateDeviceLink($id, $request->all());
+    }
+
+    // Delete function
+    public function destroy($id) {
+        return DeviceLinkRepository::DeleteDeviceLink($id);
+    }
 }
