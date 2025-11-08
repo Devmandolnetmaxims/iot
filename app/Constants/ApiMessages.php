@@ -48,4 +48,7 @@ class ApiMessages
     public const DEVICE_LINK_DELETED = 'Device link deleted successfully.';
     public const DEVICE_LINK_GET_SUCCESS = 'Device link fetched successfully.';
     public const DEVICE_LINK_NOT_FOUND = 'Device link not found.';
+
+    // DataLog messages
+    public const DATA_LOG_GET_SUCCESS = 'Data log fetched successfully.';
 }

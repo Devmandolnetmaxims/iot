@@ -169,4 +169,29 @@ class DeviceLinkRepository
             return $self->errorResponse(null, $e->getMessage(), 500);
         }
     }
+
+    // Get all car numbers
+public static function GetAllCars()
+{
+    $self = new self;
+
+    $records = DeviceLink::select([
+        'CAR1', 'CAR2', 'CAR3', 'CAR4', 'CAR5', 'CAR6', 'CAR7', 'CAR8'
+    ])->get()
+      ->toArray(); // ✅ Convert to plain arrays
+
+    // 🔹 Flatten all car numbers into a single array
+    $cars = collect($records)
+        ->flatMap(function ($item) {
+            return collect($item)
+                ->filter(fn($v) => !empty($v)) // remove null or empty
+                ->values();
+        })
+        ->unique()
+        ->values();
+
+    return $self->successResponse($cars, 'All car numbers fetched successfully', 200);
+}
+
+
 }

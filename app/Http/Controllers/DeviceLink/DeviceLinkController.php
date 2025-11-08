@@ -28,4 +28,9 @@ class DeviceLinkController extends Controller
     public function destroy($id) {
         return DeviceLinkRepository::DeleteDeviceLink($id);
     }
+
+    // Get all car numbers
+    public function getAllCars() {
+        return DeviceLinkRepository::GetAllCars();
+    }
 }

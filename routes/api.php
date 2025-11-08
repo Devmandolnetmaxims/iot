@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Device\DeviceController;
+use App\Http\Controllers\DataLog\DataLogController;
 use App\Http\Controllers\DeviceLink\DeviceLinkController;
 
 
@@ -31,9 +32,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('devicelinks')->group(function () {
        Route::get('/', [DeviceLinkController::class, 'index']);
        Route::post('/', [DeviceLinkController::class, 'store']);
+       Route::get('/cars', [DeviceLinkController::class, 'getAllCars']);
        Route::get('/{id}', [DeviceLinkController::class, 'show']);
        Route::put('/{id}', [DeviceLinkController::class, 'update']);
        Route::delete('/{id}', [DeviceLinkController::class, 'destroy']); 
+    });
+
+    // DataLog routes
+    Route::prefix('datalogs')->group(function () {
+        Route::get('/', [DataLogController::class, 'index']);
     });
 });
 
