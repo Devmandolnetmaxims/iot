@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class TestMuguhwa extends Model
 {
     //
-    protected $table = 'testmuguhwa';
+    protected $table = 'TestMuguhwa';
 
     protected $fillable = [
         'DEVICE', 'TIME', 'BEGIN', 'LAST', 'EVENT',
