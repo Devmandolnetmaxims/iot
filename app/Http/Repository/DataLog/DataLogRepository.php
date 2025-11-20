@@ -2,7 +2,7 @@
 
 namespace App\Http\Repository\DataLog;
 
-use App\Models\Testmuguhwa;
+use App\Models\TestMuguhwa;
 use App\Constants\ApiMessages;
 use App\Traits\ApiResponseTrait;
 
@@ -13,7 +13,7 @@ class DataLogRepository
     public static function Index($request)
     {
         $self = new self;
-        $query = Testmuguhwa::query();
+        $query = TestMuguhwa::query();
 
         // 🔍 Optional filter by DEVICE
         if ($request->filled('device')) {
