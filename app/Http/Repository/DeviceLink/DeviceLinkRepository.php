@@ -10,46 +10,6 @@ class DeviceLinkRepository
 {
     use ApiResponseTrait;
 
-    // public static function Index($request)
-    // {
-    //     $self = new self;
-    //     $query = DeviceLink::query();
-
-    //     // 🔍 GLOBAL SEARCH across all columns
-    //     if ($request->filled('search')) {
-    //         $search = $request->search;
-
-    //         $query->where(function ($q) use ($search) {
-    //             $q->where('D_Link', 'like', "%{$search}%")
-    //             ->orWhere('P1', 'like', "%{$search}%")
-    //             ->orWhere('P2', 'like', "%{$search}%");
-
-    //             for ($i = 1; $i <= 8; $i++) {
-    //                 $col = 'CAR' . $i;
-    //                 $q->orWhere($col, 'like', "%{$search}%");
-    //             }
-    //         });
-    //     }
-
-    //     // 📄 Pagination
-    //     $page     = (int) $request->get('page', 1);
-    //     $perPage  = (int) $request->get('per_page', 20);
-    //     $paginated = $query->paginate($perPage, ['*'], 'page', $page);
-
-    //     // 🧩 Structured response (numeric pagination, no links)
-    //     $data = [
-    //         'records' => $paginated->items(),
-    //         'pagination' => [
-    //             'total' => $paginated->total(),
-    //             'per_page' => $paginated->perPage(),
-    //             'current_page' => $paginated->currentPage(),
-    //             'last_page' => $paginated->lastPage(),
-    //         ]
-    //     ];
-
-    //     return $self->successResponse($data, ApiMessages::DEVICE_LINK_GET_SUCCESS, 200);
-    // }
-
     public static function Index($request)
     {
         $self = new self;
@@ -76,30 +36,9 @@ class DeviceLinkRepository
         $perPage  = (int) $request->get('per_page', 20);
         $paginated = $query->paginate($perPage, ['*'], 'page', $page);
 
-        // 🧩 Transform data: group CAR1–CAR8 into `coach` object
-        $records = $paginated->getCollection()->map(function ($item) {
-            $coach = [];
-            for ($i = 1; $i <= 8; $i++) {
-                $col = 'CAR' . $i;
-                if (!empty($item->$col)) {
-                    $coach['car' . $i] = $item->$col;
-                }
-            }
-
-            return [
-                'D_Link' => $item->D_Link,
-                'P1' => $item->P1,
-                'P2' => $item->P2,
-                'coach' => $coach, // ✅ now an object with car1, car2, etc.
-                'created_at' => $item->created_at,
-                'updated_at' => $item->updated_at,
-                'deleted_at' => $item->deleted_at,
-            ];
-        });
-
-        // 🧾 Final structured response
+        // 🧩 Structured response (numeric pagination, no links)
         $data = [
-            'records' => $records,
+            'records' => $paginated->items(),
             'pagination' => [
                 'total' => $paginated->total(),
                 'per_page' => $paginated->perPage(),
@@ -110,6 +49,67 @@ class DeviceLinkRepository
 
         return $self->successResponse($data, ApiMessages::DEVICE_LINK_GET_SUCCESS, 200);
     }
+
+    // public static function Index($request)
+    // {
+    //     $self = new self;
+    //     $query = DeviceLink::query();
+
+    //     // 🔍 GLOBAL SEARCH across all columns
+    //     if ($request->filled('search')) {
+    //         $search = $request->search;
+
+    //         $query->where(function ($q) use ($search) {
+    //             $q->where('D_Link', 'like', "%{$search}%")
+    //             ->orWhere('P1', 'like', "%{$search}%")
+    //             ->orWhere('P2', 'like', "%{$search}%");
+
+    //             for ($i = 1; $i <= 8; $i++) {
+    //                 $col = 'CAR' . $i;
+    //                 $q->orWhere($col, 'like', "%{$search}%");
+    //             }
+    //         });
+    //     }
+
+    //     // 📄 Pagination
+    //     $page     = (int) $request->get('page', 1);
+    //     $perPage  = (int) $request->get('per_page', 20);
+    //     $paginated = $query->paginate($perPage, ['*'], 'page', $page);
+
+    //     // 🧩 Transform data: group CAR1–CAR8 into `coach` object
+    //     $records = $paginated->getCollection()->map(function ($item) {
+    //         $coach = [];
+    //         for ($i = 1; $i <= 8; $i++) {
+    //             $col = 'CAR' . $i;
+    //             if (!empty($item->$col)) {
+    //                 $coach['car' . $i] = $item->$col;
+    //             }
+    //         }
+
+    //         return [
+    //             'D_Link' => $item->D_Link,
+    //             'P1' => $item->P1,
+    //             'P2' => $item->P2,
+    //             'coach' => $coach, // ✅ now an object with car1, car2, etc.
+    //             'created_at' => $item->created_at,
+    //             'updated_at' => $item->updated_at,
+    //             'deleted_at' => $item->deleted_at,
+    //         ];
+    //     });
+
+    //     // 🧾 Final structured response
+    //     $data = [
+    //         'records' => $records,
+    //         'pagination' => [
+    //             'total' => $paginated->total(),
+    //             'per_page' => $paginated->perPage(),
+    //             'current_page' => $paginated->currentPage(),
+    //             'last_page' => $paginated->lastPage(),
+    //         ]
+    //     ];
+
+    //     return $self->successResponse($data, ApiMessages::DEVICE_LINK_GET_SUCCESS, 200);
+    // }
 
 
     public static function CreateDeviceLink($data)
