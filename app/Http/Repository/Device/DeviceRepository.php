@@ -84,6 +84,43 @@ class DeviceRepository
     }
 
 
+    public static function getDeviceById($id)
+{
+    try {
+        $device = Device::find($id);
+
+        if (!$device) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Device not found.',
+            ], 404);
+        }
+
+        // 🔹 Pick the REAL latest trigger
+        $latestTrigger = TestMuguhwa::where('DEVICE', $device->DEVICE)
+            // ->latest('TIME')   // ensures newest row by TIME
+            ->orderBy('TIME', 'desc')
+            ->first();
+
+        $device->last_trigger = $latestTrigger;
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Device fetched successfully.',
+            'data' => $device,
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => false,
+            'message' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+
+
+
     public static function Create($request)
     {
         $self = new self;

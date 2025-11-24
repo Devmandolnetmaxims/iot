@@ -14,6 +14,11 @@ class DeviceController extends Controller
         return DeviceRepository::Index($request);
     }
 
+    public function show($id)
+    {
+        return DeviceRepository::getDeviceById($id);
+    }
+
     public function store(CreateRequest $request)
     {
         return DeviceRepository::create($request);
