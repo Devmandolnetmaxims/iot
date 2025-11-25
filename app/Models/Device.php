@@ -29,4 +29,10 @@ class Device extends Model
         'TrainArr',
         'TrainDep',
     ];
+
+    public function lastTrigger()
+    {
+         return $this->hasOne(TestMuguhwa::class, 'DEVICE', 'DEVICE')
+        ->orderBy('TIME', 'desc'); // no primary key dependency
+    }
 }
