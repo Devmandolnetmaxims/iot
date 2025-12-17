@@ -8,6 +8,7 @@ class TestMuguhwa extends Model
 {
     //
     protected $table = 'TestMuguhwa';
+    protected $primaryKey = null;
 
     protected $fillable = [
         'DEVICE', 'TIME', 'BEGIN', 'LAST', 'EVENT',
