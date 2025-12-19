@@ -6,3 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return response('Welcome. This is an API-only app.', 200);
 })->name('home');
+
+Route::get('/speed',function() {
+    return "hiii devvv";
+});
