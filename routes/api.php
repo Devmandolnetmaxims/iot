@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Analytics routes
     Route::prefix('analytics')->group(function () {
         Route::post('/load6hrawdata', [AnalyticsController::class, 'load6hrawdata']);
+        Route::get('/calculatErrorState', [AnalyticsController::class, 'calculatErrorState']);
     });
 });
 

@@ -14,4 +14,8 @@ class AnalyticsController extends Controller
     public function load6hrawdata(Request $request) {
         return AnalyticsService::Load6hrawdata($request);
     }
+
+    public function calculatErrorState() {
+        return AnalyticsService::CalculatErrorState();
+    }
 }

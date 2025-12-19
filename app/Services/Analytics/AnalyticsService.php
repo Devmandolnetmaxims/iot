@@ -78,6 +78,7 @@ class AnalyticsService
                 'rows_inserted' => $count,
             ]);
 
+            // AnalyticsService::CalculatErrorState();
             return true;
 
         } catch (\Throwable $e) {
@@ -90,4 +91,132 @@ class AnalyticsService
         }
     }
 
+    public static function CalculatErrorState($request = null)
+    {
+        // Check network issue. If within 6 hourse if device not sending any logs then we count it as offline or network issue.
+        Log::info('Calculate6hAnalytics started');
+        if(self::NetworkIssue()) {
+            Log::info('NetworkIssue completed successfully');
+        }
+        if(self::TOFIssue()) {
+            Log::info('TOFIssue completed successfully');
+        }
+        if(self::TempIssue()) {
+            Log::info('TempIssue completed successfully');
+        }
+    }
+
+    private static function NetworkIssue() {
+        try{
+            Log::info('NetworkIssue started');
+            // truncate the data first
+            DB::statement("
+                INSERT INTO device_6h_analytics (
+                    snapshot_time, device, total_records, network_missing,
+                    final_color, decision_reason, uv_on_count_6h, pir_on_count_6h, temp_min, temp_max, temp_avg,created_at, updated_at
+                )
+                SELECT
+                    NOW() as snapshot_time,
+                    m.DEVICE as device,
+                    COUNT(s.device) as total_records,
+                    CASE WHEN COUNT(s.device) = 0 THEN 1 ELSE 0 END as network_missing,
+                    CASE WHEN COUNT(s.device) = 0 THEN 'BLUE' ELSE 'GREEN' END as final_color,
+                    CASE WHEN COUNT(s.device) = 0 THEN 'No data in current 6h window' ELSE NULL END as decision_reason,
+                    SUM(CASE WHEN s.uv = 'ON' THEN 1 ELSE 0 END) AS uv_on_count_6h,
+                    SUM(CASE WHEN s.pir = 'ON' THEN 1 ELSE 0 END) AS pir_on_count_6h,
+                    MIN(s.temp) AS temp_min,
+                    MAX(s.temp) AS temp_max,
+                    AVG(s.temp) AS temp_avg,
+                    NOW(), NOW()
+                FROM deviceinfo2 m
+                LEFT JOIN device_logs_6h_staging s
+                    ON s.device = m.DEVICE
+                GROUP BY m.DEVICE
+            ");
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Calculate6hAnalytics failed', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+        }
+    }
+
+    private static function TOFIssue() {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            JOIN (
+                SELECT
+                    s.device,
+
+                    -- latest mm value
+                    SUBSTRING_INDEX(
+                        GROUP_CONCAT(s.mm ORDER BY s.time DESC),
+                        ',', 1
+                    ) AS latest_mm,
+
+                    -- count of TOF fault rows in 6h (diagnostics)
+                    SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
+
+                FROM device_logs_6h_staging s
+                GROUP BY s.device
+            ) t ON t.device = a.device
+
+            SET
+                a.tof_fault_count = t.tof_fault_count,
+
+                a.tof_issue = CASE
+                    WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
+                    ELSE 0
+                END,
+
+                a.final_color = CASE
+                    WHEN a.network_missing = 1 THEN a.final_color
+                    WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
+                    ELSE a.final_color
+                END,
+
+                a.decision_reason = CASE
+                    WHEN a.network_missing = 1 THEN a.decision_reason
+                    WHEN t.latest_mm BETWEEN 1 AND 30
+                        THEN 'TOF sensor fault (latest mm in 1–30 range)'
+                    ELSE a.decision_reason
+                END,
+
+                a.updated_at = NOW()
+
+            WHERE a.snapshot_time = (
+                SELECT MAX(snapshot_time) FROM device_6h_analytics
+            )
+        ");
+    }
+
+    private static function TempIssue() {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            JOIN (
+                SELECT s.device, s.temp
+                FROM device_logs_6h_staging s
+                INNER JOIN (
+                    SELECT device, MAX(time) AS last_time
+                    FROM device_logs_6h_staging
+                    GROUP BY device
+                ) x ON x.device = s.device AND x.last_time = s.time
+            ) last_row ON last_row.device = a.device
+            SET
+                a.temp_issue = CASE
+                    WHEN last_row.temp < 720 THEN 1
+                    ELSE 0
+                END,
+                a.final_color = CASE
+                    WHEN last_row.temp < 720 AND a.network_missing = 0 THEN 'ORANGE'
+                    ELSE a.final_color
+                END,
+                a.decision_reason = CASE
+                    WHEN last_row.temp < 720 AND a.network_missing = 0
+                        THEN 'Temperature below threshold (<720)'
+                    ELSE a.decision_reason
+                END
+        ");
+    }
  }
