@@ -8,11 +8,7 @@ use Carbon\Carbon;
 
 class AnalyticsService
 {
-    public function __construct()
-    {
-        //
-    }
-
+    // Load 6 hourse raw data in temp table
     public static function Load6hrawdata($request = null)
     {
         Log::info('Load6hrawdata started');
@@ -91,6 +87,7 @@ class AnalyticsService
         }
     }
 
+    // Calculate error state
     public static function CalculatErrorState($request = null)
     {
         // Check network issue. If within 6 hourse if device not sending any logs then we count it as offline or network issue.
@@ -104,8 +101,21 @@ class AnalyticsService
         if(self::TempIssue()) {
             Log::info('TempIssue completed successfully');
         }
+        if(self::UVCheckForLast30()) {
+            Log::info('UVCheckForLast30 completed successfully');
+        }
+        if(self::UVCheckForLast200()) {
+            Log::info('UVCheckForLast200 completed successfully');
+        }
+        if(self::UVCheckForLast1000()) {
+            Log::info('UVCheckForLast1000 completed successfully');
+        }
+        if(self::UVFailLast1000()) {
+            Log::info('UVFailLast1000 completed successfully');
+        }
     }
 
+    // Check network issue
     private static function NetworkIssue() {
         try{
             Log::info('NetworkIssue started');
@@ -142,6 +152,7 @@ class AnalyticsService
         }
     }
 
+    // Check TOF issue
     private static function TOFIssue() {
         DB::statement("
             UPDATE device_6h_analytics a
@@ -191,6 +202,7 @@ class AnalyticsService
         ");
     }
 
+    // Check temp issue
     private static function TempIssue() {
         DB::statement("
             UPDATE device_6h_analytics a
@@ -219,4 +231,101 @@ class AnalyticsService
                 END
         ");
     }
- }
+
+    //
+    private static function UVCheckForLast30()
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            JOIN (
+                SELECT DISTINCT device
+                FROM (
+                    SELECT
+                        device,
+                        uv,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY device
+                            ORDER BY time DESC
+                        ) rn
+                    FROM device_logs_6h_staging
+                ) x
+                WHERE rn <= 30
+                AND TRIM(UPPER(uv)) = 'ON'
+            ) u ON TRIM(u.device) = TRIM(a.device)
+            SET
+                a.uv_pass_30 = 1,
+                a.final_color = 'GREEN',
+                a.decision_reason = 'UV ON detected in last 30 records';
+        ");
+    }
+
+    private static function UVCheckForLast200()
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            SET
+                a.uv_pass_200 = 1,
+                a.final_color = 'GREEN',
+                a.decision_reason = 'UV ON detected in last 200 records'
+            WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+            AND EXISTS (
+                SELECT 1
+                FROM (
+                    SELECT device, uv,
+                        ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+                    FROM device_logs_6h_staging
+                ) t
+                WHERE t.device = a.device
+                AND t.rn <= 200
+                AND t.uv = 'ON'
+            )
+        ");
+    }
+
+    private static function UVCheckForLast1000()
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            SET
+                a.uv_pass_1000 = 1,
+                a.final_color = 'GREEN',
+                a.decision_reason = 'UV ON detected in last 1000 records'
+            WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+            AND EXISTS (
+                SELECT 1
+                FROM (
+                    SELECT device, uv,
+                        ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+                    FROM device_logs_6h_staging
+                ) t
+                WHERE t.device = a.device
+                AND t.rn <= 1000
+                AND t.uv = 'ON'
+            )
+        ");
+    }
+
+    private static function UVFailLast1000()
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            SET
+                a.uv_pass_1000 = 0,
+                a.final_color = 'MAGENTA',
+                a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
+            WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+            AND NOT EXISTS (
+                SELECT 1
+                FROM (
+                    SELECT device, uv,
+                        ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+                    FROM device_logs_6h_staging
+                ) t
+                WHERE t.device = a.device
+                AND t.rn <= 1000
+                AND t.uv = 'ON'
+            )
+        ");
+    }
+
+}

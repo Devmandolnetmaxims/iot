@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use App\Jobs\RunPostAnalyticsTask;
 use App\Services\Analytics\AnalyticsService;
 
 class Load6hRawData extends Command
@@ -31,6 +32,8 @@ class Load6hRawData extends Command
 
         if(AnalyticsService::Load6hrawdata($request)) {
             $this->info('Raw data loaded.');
+            RunPostAnalyticsTask::dispatch()
+            ->delay(now()->addSeconds(60));
         } else {
             $this->error('Raw data not loaded.');
         }
