@@ -64,7 +64,7 @@ class AnalyticsService
                     device, time, begin, last, event,
                     active, pir, tof, uv, mm, temp,
                     NOW(), NOW()
-                FROM testmuguhwa
+                FROM TestMuguhwa
                 WHERE time >= ? AND time < ?
             ", [$from, $to]);
 
