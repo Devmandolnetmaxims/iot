@@ -9,7 +9,7 @@ use App\Traits\ApiResponseTrait;
 class DeviceLinkRepository
 {
     use ApiResponseTrait;
-    
+
     public static function Index($request)
     {
         $self = new self;
@@ -50,6 +50,8 @@ class DeviceLinkRepository
                 'D_Link' => $item->D_Link,
                 'P1' => $item->P1,
                 'P2' => $item->P2,
+                'des_train_number' => $item->des_train_number,
+                'ori_train_number' => $item->ori_train_number,
                 'coach' => $coach,   // ✅ ARRAY, not object
                 'created_at' => $item->created_at,
                 'updated_at' => $item->updated_at,
