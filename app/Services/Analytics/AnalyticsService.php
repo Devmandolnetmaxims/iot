@@ -220,54 +220,107 @@ class AnalyticsService
         }
     }
     // Check TOF issue
-    private static function TOFIssue() {
-        DB::statement("
-            UPDATE device_6h_analytics a
-            JOIN (
-                SELECT
-                    s.device,
+    // private static function TOFIssue() {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+    //         JOIN (
+    //             SELECT
+    //                 s.device,
 
-                    -- latest mm value
-                    SUBSTRING_INDEX(
-                        GROUP_CONCAT(s.mm ORDER BY s.time DESC),
-                        ',', 1
-                    ) AS latest_mm,
+    //                 -- latest mm value
+    //                 SUBSTRING_INDEX(
+    //                     GROUP_CONCAT(s.mm ORDER BY s.time DESC),
+    //                     ',', 1
+    //                 ) AS latest_mm,
 
-                    -- count of TOF fault rows in 6h (diagnostics)
-                    SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
+    //                 -- count of TOF fault rows in 6h (diagnostics)
+    //                 SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
 
-                FROM device_logs_6h_staging s
-                GROUP BY s.device
-            ) t ON t.device = a.device
+    //             FROM device_logs_6h_staging s
+    //             GROUP BY s.device
+    //         ) t ON t.device = a.device
 
-            SET
-                a.tof_fault_count = t.tof_fault_count,
+    //         SET
+    //             a.tof_fault_count = t.tof_fault_count,
 
-                a.tof_issue = CASE
-                    WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
-                    ELSE 0
-                END,
+    //             a.tof_issue = CASE
+    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
+    //                 ELSE 0
+    //             END,
 
-                a.final_color = CASE
-                    WHEN a.network_missing = 1 THEN a.final_color
-                    WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
-                    ELSE a.final_color
-                END,
+    //             a.final_color = CASE
+    //                 WHEN a.network_missing = 1 THEN a.final_color
+    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
+    //                 ELSE a.final_color
+    //             END,
 
-                a.decision_reason = CASE
-                    WHEN a.network_missing = 1 THEN a.decision_reason
-                    WHEN t.latest_mm BETWEEN 1 AND 30
-                        THEN 'TOF sensor fault (latest mm in 1–30 range)'
-                    ELSE a.decision_reason
-                END,
+    //             a.decision_reason = CASE
+    //                 WHEN a.network_missing = 1 THEN a.decision_reason
+    //                 WHEN t.latest_mm BETWEEN 1 AND 30
+    //                     THEN 'TOF sensor fault (latest mm in 1–30 range)'
+    //                 ELSE a.decision_reason
+    //             END,
 
-                a.updated_at = NOW()
+    //             a.updated_at = NOW()
 
-            WHERE a.snapshot_time = (
-                SELECT MAX(snapshot_time) FROM device_6h_analytics
-            )
-        ");
-    }
+    //         WHERE a.snapshot_time = (
+    //             SELECT MAX(snapshot_time) FROM device_6h_analytics
+    //         )
+    //     ");
+    // }
+    private static function TOFIssue()
+{
+    DB::statement("
+        UPDATE device_6h_analytics a
+
+        /* latest snapshot time */
+        JOIN (
+            SELECT MAX(snapshot_time) AS max_snapshot_time
+            FROM device_6h_analytics
+        ) mx ON a.snapshot_time = mx.max_snapshot_time
+
+        /* TOF diagnostics per device */
+        JOIN (
+            SELECT
+                s.device,
+
+                -- latest mm value
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(s.mm ORDER BY s.time DESC),
+                    ',', 1
+                ) AS latest_mm,
+
+                -- count of TOF fault rows in 6h
+                SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
+
+            FROM device_logs_6h_staging s
+            GROUP BY s.device
+        ) t ON t.device = a.device
+
+        SET
+            a.tof_fault_count = t.tof_fault_count,
+
+            a.tof_issue = CASE
+                WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
+                ELSE 0
+            END,
+
+            a.final_color = CASE
+                WHEN a.network_missing = 1 THEN a.final_color
+                WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
+                ELSE a.final_color
+            END,
+
+            a.decision_reason = CASE
+                WHEN a.network_missing = 1 THEN a.decision_reason
+                WHEN t.latest_mm BETWEEN 1 AND 30
+                    THEN 'TOF sensor fault (latest mm in 1–30 range)'
+                ELSE a.decision_reason
+            END,
+
+            a.updated_at = NOW()
+    ");
+}
 
     // Check temp issue
     private static function TempIssue() {
