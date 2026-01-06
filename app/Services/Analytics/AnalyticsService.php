@@ -116,42 +116,109 @@ class AnalyticsService
     }
 
     // Check network issue
-    private static function NetworkIssue() {
-        try{
+    private static function NetworkIssue()
+    {
+        try {
             Log::info('NetworkIssue started');
-            // truncate the data first
+
+            /*
+            |------------------------------------------------------
+            | 1. Identify window based on staging table MAX(time)
+            |------------------------------------------------------
+            | This creates a FIXED 6h branch for ALL devices
+            */
+            $windowStart = DB::table('device_logs_6h_staging')
+                ->selectRaw("
+                    CASE
+                        WHEN HOUR(MAX(time)) < 6  THEN DATE(MAX(time)) + INTERVAL 0 HOUR
+                        WHEN HOUR(MAX(time)) < 12 THEN DATE(MAX(time)) + INTERVAL 6 HOUR
+                        WHEN HOUR(MAX(time)) < 18 THEN DATE(MAX(time)) + INTERVAL 12 HOUR
+                        ELSE DATE(MAX(time)) + INTERVAL 18 HOUR
+                    END AS window_start
+                ")
+                ->value('window_start');
+
+            // No data at all
+            if (!$windowStart) {
+                Log::warning('NetworkIssue: No staging data found');
+                return false;
+            }
+
+            $windowStart = Carbon::parse($windowStart);
+            $windowEnd   = $windowStart->copy()->addHours(6);
+
+            $clockTime = $windowStart->format('Y-m-d H:i:s');
+
+            Log::info('6h Window Identified', [
+                'clock_time' => $clockTime,
+                'from'       => $windowStart->toDateTimeString(),
+                'to'         => $windowEnd->toDateTimeString(),
+            ]);
+
+            /*
+            |------------------------------------------------------
+            | 2. Insert analytics for THIS EXACT window
+            |------------------------------------------------------
+            | - LEFT JOIN ensures BLUE for missing devices
+            | - clock_time is the branch identifier
+            */
             DB::statement("
                 INSERT INTO device_6h_analytics (
-                    snapshot_time, device, total_records, network_missing,
-                    final_color, decision_reason, uv_on_count_6h, pir_on_count_6h, temp_min, temp_max, temp_avg,created_at, updated_at
+                    snapshot_time,
+                    clock_time,
+                    device,
+                    total_records,
+                    network_missing,
+                    final_color,
+                    decision_reason,
+                    uv_on_count_6h,
+                    pir_on_count_6h,
+                    temp_min,
+                    temp_max,
+                    temp_avg,
+                    created_at,
+                    updated_at
                 )
                 SELECT
-                    NOW() as snapshot_time,
-                    m.DEVICE as device,
-                    COUNT(s.device) as total_records,
-                    CASE WHEN COUNT(s.device) = 0 THEN 1 ELSE 0 END as network_missing,
-                    CASE WHEN COUNT(s.device) = 0 THEN 'BLUE' ELSE 'GREEN' END as final_color,
-                    CASE WHEN COUNT(s.device) = 0 THEN 'No data in current 6h window' ELSE NULL END as decision_reason,
-                    SUM(CASE WHEN s.uv = 'ON' THEN 1 ELSE 0 END) AS uv_on_count_6h,
-                    SUM(CASE WHEN s.pir = 'ON' THEN 1 ELSE 0 END) AS pir_on_count_6h,
-                    MIN(s.temp) AS temp_min,
-                    MAX(s.temp) AS temp_max,
-                    AVG(s.temp) AS temp_avg,
-                    NOW(), NOW()
+                    NOW(),
+                    '{$clockTime}',
+                    m.DEVICE,
+                    COUNT(s.device),
+                    CASE WHEN COUNT(s.device) = 0 THEN 1 ELSE 0 END,
+                    CASE WHEN COUNT(s.device) = 0 THEN 'BLUE' ELSE 'GREEN' END,
+                    CASE WHEN COUNT(s.device) = 0 THEN 'No data in this 6h window' ELSE NULL END,
+                    SUM(CASE WHEN s.uv = 'ON' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN s.pir = 'ON' THEN 1 ELSE 0 END),
+                    MIN(s.temp),
+                    MAX(s.temp),
+                    AVG(s.temp),
+                    NOW(),
+                    NOW()
                 FROM deviceinfo2 m
                 LEFT JOIN device_logs_6h_staging s
                     ON s.device = m.DEVICE
+                    AND s.time >= ?
+                    AND s.time <  ?
                 GROUP BY m.DEVICE
-            ");
+            ", [
+                $windowStart->format('Y-m-d H:i:s'),
+                $windowEnd->format('Y-m-d H:i:s'),
+            ]);
+
+            Log::info('NetworkIssue completed successfully', [
+                'clock_time' => $clockTime
+            ]);
+
             return true;
+
         } catch (\Throwable $e) {
-            Log::error('Calculate6hAnalytics failed', [
+            Log::error('NetworkIssue failed', [
                 'message' => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
+            return false;
         }
     }
-
     // Check TOF issue
     private static function TOFIssue() {
         DB::statement("

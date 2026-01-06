@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
 
             $table->dateTime('snapshot_time')->index();
+            $table->dateTime('clock_time')->nullable()->index();
             $table->char('device', 50)->index();
 
             /* ---- FACT METRICS (FROM STAGING) ---- */

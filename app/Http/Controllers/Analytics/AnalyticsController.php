@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Analytics;
 
+use App\Http\Repository\Analytics\AnalyticsRepository;
 use App\Services\Analytics\AnalyticsService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -17,5 +18,10 @@ class AnalyticsController extends Controller
 
     public function calculatErrorState() {
         return AnalyticsService::CalculatErrorState();
+    }
+
+    // get device colors
+    public function getDeviceColors(Request $request) {
+        return AnalyticsRepository::getDeviceColors($request);
     }
 }
