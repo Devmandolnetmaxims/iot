@@ -194,7 +194,7 @@ class AnalyticsService
                     AVG(s.temp),
                     NOW(),
                     NOW()
-                FROM deviceinfo2 m
+                FROM DeviceInfo2 m
                 LEFT JOIN device_logs_6h_staging s
                     ON s.device = m.DEVICE
                     AND s.time >= ?
@@ -219,6 +219,7 @@ class AnalyticsService
             return false;
         }
     }
+
     // Check TOF issue
     // private static function TOFIssue() {
     //     DB::statement("
@@ -268,6 +269,60 @@ class AnalyticsService
     //         )
     //     ");
     // }
+    // private static function TOFIssue()
+    // {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+
+    //         /* latest snapshot time */
+    //         JOIN (
+    //             SELECT MAX(snapshot_time) AS max_snapshot_time
+    //             FROM device_6h_analytics
+    //         ) mx ON a.snapshot_time = mx.max_snapshot_time
+
+    //         /* TOF diagnostics per device */
+    //         JOIN (
+    //             SELECT
+    //                 s.device,
+
+    //                 -- latest mm value
+    //                 SUBSTRING_INDEX(
+    //                     GROUP_CONCAT(s.mm ORDER BY s.time DESC),
+    //                     ',', 1
+    //                 ) AS latest_mm,
+
+    //                 -- count of TOF fault rows in 6h
+    //                 SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
+
+    //             FROM device_logs_6h_staging s
+    //             GROUP BY s.device
+    //         ) t ON t.device = a.device
+
+    //         SET
+    //             a.tof_fault_count = t.tof_fault_count,
+
+    //             a.tof_issue = CASE
+    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
+    //                 ELSE 0
+    //             END,
+
+    //             a.final_color = CASE
+    //                 WHEN a.network_missing = 1 THEN a.final_color
+    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
+    //                 ELSE a.final_color
+    //             END,
+
+    //             a.decision_reason = CASE
+    //                 WHEN a.network_missing = 1 THEN a.decision_reason
+    //                 WHEN t.latest_mm BETWEEN 1 AND 30
+    //                     THEN 'TOF sensor fault (latest mm in 1–30 range)'
+    //                 ELSE a.decision_reason
+    //             END,
+
+    //             a.updated_at = NOW()
+    //     ");
+    // }
+
     private static function TOFIssue()
 {
     DB::statement("
@@ -279,41 +334,43 @@ class AnalyticsService
             FROM device_6h_analytics
         ) mx ON a.snapshot_time = mx.max_snapshot_time
 
-        /* TOF diagnostics per device */
+        /* latest mm per device */
         JOIN (
-            SELECT
-                s.device,
+            SELECT s1.device, s1.mm AS latest_mm
+            FROM device_logs_6h_staging s1
+            JOIN (
+                SELECT device, MAX(time) AS max_time
+                FROM device_logs_6h_staging
+                GROUP BY device
+            ) s2
+                ON s2.device = s1.device
+               AND s2.max_time = s1.time
+        ) lm ON lm.device = a.device
 
-                -- latest mm value
-                SUBSTRING_INDEX(
-                    GROUP_CONCAT(s.mm ORDER BY s.time DESC),
-                    ',', 1
-                ) AS latest_mm,
-
-                -- count of TOF fault rows in 6h
-                SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
-
-            FROM device_logs_6h_staging s
-            GROUP BY s.device
-        ) t ON t.device = a.device
+        /* TOF fault count per device */
+        JOIN (
+            SELECT device, SUM(mm BETWEEN 1 AND 30) AS tof_fault_count
+            FROM device_logs_6h_staging
+            GROUP BY device
+        ) tc ON tc.device = a.device
 
         SET
-            a.tof_fault_count = t.tof_fault_count,
+            a.tof_fault_count = tc.tof_fault_count,
 
             a.tof_issue = CASE
-                WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
+                WHEN lm.latest_mm BETWEEN 1 AND 30 THEN 1
                 ELSE 0
             END,
 
             a.final_color = CASE
                 WHEN a.network_missing = 1 THEN a.final_color
-                WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
+                WHEN lm.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
                 ELSE a.final_color
             END,
 
             a.decision_reason = CASE
                 WHEN a.network_missing = 1 THEN a.decision_reason
-                WHEN t.latest_mm BETWEEN 1 AND 30
+                WHEN lm.latest_mm BETWEEN 1 AND 30
                     THEN 'TOF sensor fault (latest mm in 1–30 range)'
                 ELSE a.decision_reason
             END,
@@ -321,6 +378,7 @@ class AnalyticsService
             a.updated_at = NOW()
     ");
 }
+
 
     // Check temp issue
     private static function TempIssue() {
@@ -353,6 +411,32 @@ class AnalyticsService
     }
 
     //
+    // private static function UVCheckForLast30()
+    // {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+    //         JOIN (
+    //             SELECT DISTINCT device
+    //             FROM (
+    //                 SELECT
+    //                     device,
+    //                     uv,
+    //                     ROW_NUMBER() OVER (
+    //                         PARTITION BY device
+    //                         ORDER BY time DESC
+    //                     ) rn
+    //                 FROM device_logs_6h_staging
+    //             ) x
+    //             WHERE rn <= 30
+    //             AND TRIM(UPPER(uv)) = 'ON'
+    //         ) u ON TRIM(u.device) = TRIM(a.device)
+    //         SET
+    //             a.uv_pass_30 = 1,
+    //             a.final_color = 'GREEN',
+    //             a.decision_reason = 'UV ON detected in last 30 records';
+    //     ");
+    // }
+
     private static function UVCheckForLast30()
     {
         DB::statement("
@@ -363,89 +447,178 @@ class AnalyticsService
                     SELECT
                         device,
                         uv,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY device
-                            ORDER BY time DESC
-                        ) rn
+                        @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
+                        @prev_device := device
                     FROM device_logs_6h_staging
-                ) x
+                    CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
+                    ORDER BY device, time DESC
+                ) ranked
                 WHERE rn <= 30
                 AND TRIM(UPPER(uv)) = 'ON'
             ) u ON TRIM(u.device) = TRIM(a.device)
             SET
                 a.uv_pass_30 = 1,
                 a.final_color = 'GREEN',
-                a.decision_reason = 'UV ON detected in last 30 records';
+                a.decision_reason = 'UV ON detected in last 30 records'
         ");
     }
 
+    // private static function UVCheckForLast200()
+    // {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+    //         SET
+    //             a.uv_pass_200 = 1,
+    //             a.final_color = 'GREEN',
+    //             a.decision_reason = 'UV ON detected in last 200 records'
+    //         WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+    //         AND EXISTS (
+    //             SELECT 1
+    //             FROM (
+    //                 SELECT device, uv,
+    //                     ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+    //                 FROM device_logs_6h_staging
+    //             ) t
+    //             WHERE t.device = a.device
+    //             AND t.rn <= 200
+    //             AND t.uv = 'ON'
+    //         )
+    //     ");
+    // }
+
     private static function UVCheckForLast200()
     {
-        DB::statement("
-            UPDATE device_6h_analytics a
+        DB::statement("UPDATE device_6h_analytics a
             SET
                 a.uv_pass_200 = 1,
                 a.final_color = 'GREEN',
                 a.decision_reason = 'UV ON detected in last 200 records'
-            WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
-            AND EXISTS (
-                SELECT 1
-                FROM (
-                    SELECT device, uv,
-                        ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
-                    FROM device_logs_6h_staging
-                ) t
-                WHERE t.device = a.device
-                AND t.rn <= 200
-                AND t.uv = 'ON'
-            )
-        ");
+            WHERE
+                (a.final_color IS NULL OR a.final_color = 'GREEN')
+                AND EXISTS (
+                    SELECT 1
+                    FROM (
+                        SELECT
+                            device,
+                            uv,
+                            @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
+                            @prev_device := device
+                        FROM device_logs_6h_staging
+                        CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
+                        ORDER BY device, time DESC
+                    ) ranked
+                    WHERE
+                        ranked.device = a.device
+                        AND ranked.rn <= 200
+                        AND TRIM(UPPER(ranked.uv)) = 'ON'
+                );"
+            );
     }
+
+    // private static function UVCheckForLast1000()
+    // {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+    //         SET
+    //             a.uv_pass_1000 = 1,
+    //             a.final_color = 'GREEN',
+    //             a.decision_reason = 'UV ON detected in last 1000 records'
+    //         WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+    //         AND EXISTS (
+    //             SELECT 1
+    //             FROM (
+    //                 SELECT device, uv,
+    //                     ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+    //                 FROM device_logs_6h_staging
+    //             ) t
+    //             WHERE t.device = a.device
+    //             AND t.rn <= 1000
+    //             AND t.uv = 'ON'
+    //         )
+    //     ");
+    // }
 
     private static function UVCheckForLast1000()
-    {
-        DB::statement("
-            UPDATE device_6h_analytics a
-            SET
-                a.uv_pass_1000 = 1,
-                a.final_color = 'GREEN',
-                a.decision_reason = 'UV ON detected in last 1000 records'
-            WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+{
+    DB::statement("
+        UPDATE device_6h_analytics a
+        SET
+            a.uv_pass_1000 = 1,
+            a.final_color = 'GREEN',
+            a.decision_reason = 'UV ON detected in last 1000 records'
+        WHERE
+            (a.final_color IS NULL OR a.final_color = 'GREEN')
             AND EXISTS (
                 SELECT 1
                 FROM (
-                    SELECT device, uv,
-                        ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+                    SELECT
+                        device,
+                        uv,
+                        @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
+                        @prev_device := device
                     FROM device_logs_6h_staging
-                ) t
-                WHERE t.device = a.device
-                AND t.rn <= 1000
-                AND t.uv = 'ON'
+                    CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
+                    ORDER BY device, time DESC
+                ) ranked
+                WHERE
+                    ranked.device = a.device
+                    AND ranked.rn <= 1000
+                    AND TRIM(UPPER(ranked.uv)) = 'ON'
             )
-        ");
-    }
+    ");
+}
+
+    // private static function UVFailLast1000()
+    // {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+    //         SET
+    //             a.uv_pass_1000 = 0,
+    //             a.final_color = 'MAGENTA',
+    //             a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
+    //         WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+    //         AND NOT EXISTS (
+    //             SELECT 1
+    //             FROM (
+    //                 SELECT device, uv,
+    //                     ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+    //                 FROM device_logs_6h_staging
+    //             ) t
+    //             WHERE t.device = a.device
+    //             AND t.rn <= 1000
+    //             AND t.uv = 'ON'
+    //         )
+    //     ");
+    // }
 
     private static function UVFailLast1000()
-    {
-        DB::statement("
-            UPDATE device_6h_analytics a
-            SET
-                a.uv_pass_1000 = 0,
-                a.final_color = 'MAGENTA',
-                a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
-            WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
+{
+    DB::statement("
+        UPDATE device_6h_analytics a
+        SET
+            a.uv_pass_1000 = 0,
+            a.final_color = 'MAGENTA',
+            a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
+        WHERE
+            (a.final_color IS NULL OR a.final_color = 'GREEN')
             AND NOT EXISTS (
                 SELECT 1
                 FROM (
-                    SELECT device, uv,
-                        ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
+                    SELECT
+                        device,
+                        uv,
+                        @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
+                        @prev_device := device
                     FROM device_logs_6h_staging
-                ) t
-                WHERE t.device = a.device
-                AND t.rn <= 1000
-                AND t.uv = 'ON'
+                    CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
+                    ORDER BY device, time DESC
+                ) ranked
+                WHERE
+                    ranked.device = a.device
+                    AND ranked.rn <= 1000
+                    AND TRIM(UPPER(ranked.uv)) = 'ON'
             )
-        ");
-    }
+    ");
+}
 
 }

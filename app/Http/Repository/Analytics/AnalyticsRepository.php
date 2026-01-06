@@ -10,7 +10,7 @@ class AnalyticsRepository {
     public static function getDeviceColors($request)
     {
         // Validation
-        $validator = Validator::make($request->all(), [
+        $validator = Validator::make($request->query(), [
             'date' => 'required|date',
             'time' => 'required|date_format:H:i:s',
         ]);
@@ -22,7 +22,7 @@ class AnalyticsRepository {
             ], 422);
         }
 
-        $dateTime = $request->date . ' ' . $request->time;
+        $dateTime = $request['date'] . ' ' . $request['time'];
 
         // Check if this clock_time exists at all
         $exists = DB::table('device_6h_analytics')
