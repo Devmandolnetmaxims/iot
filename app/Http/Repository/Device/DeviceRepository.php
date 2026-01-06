@@ -11,7 +11,7 @@ use App\Traits\ApiResponseTrait;
 class DeviceRepository
 {
     use ApiResponseTrait;
-    
+
     // public static function Index($request)
     // {
     //     $self = new self;
@@ -85,6 +85,7 @@ class DeviceRepository
 
     public static function Index($request)
     {
+
         $query = Device::query();
 
         // ✅ Global search
@@ -141,41 +142,38 @@ class DeviceRepository
 
 
     public static function getDeviceById($id)
-{
-    try {
-        $device = Device::find($id);
+    {
+        try {
+            $device = Device::find($id);
 
-        if (!$device) {
+            if (!$device) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Device not found.',
+                ], 404);
+            }
+
+            // 🔹 Pick the REAL latest trigger
+            $latestTrigger = TestMuguhwa::where('DEVICE', $device->DEVICE)
+                // ->latest('TIME')   // ensures newest row by TIME
+                ->orderBy('TIME', 'desc')
+                ->first();
+
+            $device->last_trigger = $latestTrigger;
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Device fetched successfully.',
+                'data' => $device,
+            ], 200);
+
+        } catch (\Exception $e) {
             return response()->json([
                 'status' => false,
-                'message' => 'Device not found.',
-            ], 404);
+                'message' => $e->getMessage(),
+            ], 500);
         }
-
-        // 🔹 Pick the REAL latest trigger
-        $latestTrigger = TestMuguhwa::where('DEVICE', $device->DEVICE)
-            // ->latest('TIME')   // ensures newest row by TIME
-            ->orderBy('TIME', 'desc')
-            ->first();
-
-        $device->last_trigger = $latestTrigger;
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Device fetched successfully.',
-            'data' => $device,
-        ], 200);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => false,
-            'message' => $e->getMessage(),
-        ], 500);
     }
-}
-
-
-
 
     public static function Create($request)
     {

@@ -5,11 +5,12 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Device\DeviceController;
 use App\Http\Controllers\DataLog\DataLogController;
+use App\Http\Controllers\Analytics\AnalyticsController;
 use App\Http\Controllers\DeviceLink\DeviceLinkController;
 
 
 // Authentication routes
-Route::post('/login', [AuthController::class, 'login']); 
+Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'ResetPassword']);
 
@@ -35,12 +36,23 @@ Route::middleware('auth:sanctum')->group(function () {
        Route::get('/cars', [DeviceLinkController::class, 'getAllCars']);
        Route::get('/{id}', [DeviceLinkController::class, 'show']);
        Route::put('/{id}', [DeviceLinkController::class, 'update']);
-       Route::delete('/{id}', [DeviceLinkController::class, 'destroy']); 
+       Route::delete('/{id}', [DeviceLinkController::class, 'destroy']);
     });
 
     // DataLog routes
     Route::prefix('datalogs')->group(function () {
         Route::get('/', [DataLogController::class, 'index']);
+    });
+
+
+    // Analytics routes
+    Route::prefix('analytics')->group(function () {
+        Route::post('/load6hrawdata', [AnalyticsController::class, 'load6hrawdata']);
+        Route::get('/calculatErrorState', [AnalyticsController::class, 'calculatErrorState']);
+        Route::get('/getDeviceColors', [AnalyticsController::class, 'getDeviceColors']);
+        // Route::get('/getDeviceColors', function (){
+        //     dd("testingg....");
+        // });
     });
 });
 
@@ -49,3 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::get('/speed',function() {
+    return "hasds";
+});
