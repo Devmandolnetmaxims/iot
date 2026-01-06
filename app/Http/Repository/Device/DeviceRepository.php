@@ -6,6 +6,8 @@ use App\Models\Device;
 use App\Models\TestMuguhwa;
 use App\Constants\ApiMessages;
 use App\Traits\ApiResponseTrait;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 
 class DeviceRepository
@@ -83,63 +85,175 @@ class DeviceRepository
     //     return $self->successResponse($response, ApiMessages::DEVICE_GET_SUCCESS, 200);
     // }
 
+    // public static function Index($request)
+    // {
+
+    //     $query = Device::query();
+
+    //     // ✅ Global search
+    //     $query->when($request->search, function ($q, $search) {
+    //         $q->where(function ($sub) use ($search) {
+    //             $sub->where('DEVICE', 'LIKE', "%{$search}%")
+    //                 ->orWhere('CAR', 'LIKE', "%{$search}%")
+    //                 ->orWhere('CAR_LINK', 'LIKE', "%{$search}%");
+    //         });
+    //     });
+
+    //     // ✅ Filters
+    //     $query->when($request->car, fn($q, $car) => $q->where('CAR', $car))
+    //         ->when($request->type, fn($q, $type) => $q->where('TYPE', $type))
+    //         ->when($request->car_link, fn($q, $link) => $q->where('CAR_LINK', $link));
+
+    //     // ✅ Date filters
+    //     $query->when($request->start_date && $request->end_date, function ($q) use ($request) {
+    //         $q->whereBetween('INSTALL', [$request->start_date, $request->end_date]);
+    //     })->when($request->INSTALL, function ($q, $install) {
+    //         $q->whereDate('INSTALL', $install);
+    //     });
+
+    //     // ✅ Partial match filters
+    //     $query->when($request->p1, fn($q, $p1) => $q->where('P1', 'LIKE', "%{$p1}%"))
+    //         ->when($request->p2, fn($q, $p2) => $q->where('P2', 'LIKE', "%{$p2}%"));
+
+    //     // ✅ Pagination
+    //     $perPage = $request->input('per_page', 10);
+
+    //     // ✅ Eager load latest trigger (NO LOOP, NO N+1)
+    //     $devices = $query
+    //         ->with('lastTrigger')
+    //         ->paginate($perPage);
+
+    //     // ✅ Custom structured response
+    //     $response = [
+    //         'data' => $devices->items(),
+    //         'pagination' => [
+    //             'page' => $devices->currentPage(),
+    //             'per_page' => $devices->perPage(),
+    //             'total' => $devices->total(),
+    //             'last_page' => $devices->lastPage(),
+    //         ]
+    //     ];
+
+    //     return (new self)->successResponse(
+    //         $response,
+    //         ApiMessages::DEVICE_GET_SUCCESS,
+    //         200
+    //     );
+    // }
+
     public static function Index($request)
     {
+        $perPage = min((int) $request->input('per_page', 10), 300);
 
-        $query = Device::query();
+        // 1️⃣ Subquery: latest TIME per DEVICE
+        $latestTime = DB::table('TestMuguhwa')
+            ->select('DEVICE', DB::raw('MAX(TIME) as TIME'))
+            ->groupBy('DEVICE');
 
-        // ✅ Global search
-        $query->when($request->search, function ($q, $search) {
-            $q->where(function ($sub) use ($search) {
-                $sub->where('DEVICE', 'LIKE', "%{$search}%")
-                    ->orWhere('CAR', 'LIKE', "%{$search}%")
-                    ->orWhere('CAR_LINK', 'LIKE', "%{$search}%");
+        // 2️⃣ Main query
+        $query = DB::table('DeviceInfo2 as d')
+            ->leftJoinSub($latestTime, 'lt', function ($join) {
+                $join->on('lt.DEVICE', '=', 'd.DEVICE');
+            })
+            ->leftJoin('TestMuguhwa as t', function ($join) {
+                $join->on('t.DEVICE', '=', 'lt.DEVICE')
+                    ->on('t.TIME', '=', 'lt.TIME');
+            })
+            ->select([
+                'd.DEVICE',
+                'd.CAR',
+                'd.TYPE',
+                'd.INSTALL',
+                'd.CAR_LINK',
+                'd.P1',
+                'd.P2',
+                'd.created_at',
+                'd.updated_at',
+                'd.deleted_at',
+
+                // trigger columns (flat)
+                't.DEVICE as t_DEVICE',
+                't.TIME as t_TIME',
+                't.BEGIN',
+                't.LAST',
+                't.EVENT',
+                't.ACTIVE',
+                't.PIR',
+                't.TOF',
+                't.UV',
+                't.MM',
+                't.TEMP',
+            ]);
+
+        /* ---------- filters (unchanged) ---------- */
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('d.DEVICE', 'LIKE', "%{$s}%")
+                ->orWhere('d.CAR', 'LIKE', "%{$s}%")
+                ->orWhere('d.CAR_LINK', 'LIKE', "%{$s}%");
             });
+        }
+
+        $query->when($request->car, fn ($q, $v) => $q->where('d.CAR', $v))
+            ->when($request->type, fn ($q, $v) => $q->where('d.TYPE', $v))
+            ->when($request->car_link, fn ($q, $v) => $q->where('d.CAR_LINK', $v))
+            ->when($request->INSTALL, fn ($q, $v) => $q->whereDate('d.INSTALL', $v))
+            ->when($request->p1, fn ($q, $v) => $q->where('d.P1', 'LIKE', "%{$v}%"))
+            ->when($request->p2, fn ($q, $v) => $q->where('d.P2', 'LIKE', "%{$v}%"));
+
+        if ($request->start_date && $request->end_date) {
+            $query->whereBetween('d.INSTALL', [
+                $request->start_date,
+                $request->end_date
+            ]);
+        }
+
+        // 3️⃣ Pagination
+        $page = $query->paginate($perPage);
+
+        // 4️⃣ RESHAPE to original format
+        $data = collect($page->items())->map(function ($row) {
+            return [
+                'DEVICE'      => $row->DEVICE,
+                'CAR'         => $row->CAR,
+                'TYPE'        => $row->TYPE,
+                'INSTALL'     => $row->INSTALL,
+                'CAR_LINK'    => $row->CAR_LINK,
+                'P1'          => $row->P1,
+                'P2'          => $row->P2,
+                'created_at'  => $row->created_at,
+                'updated_at'  => $row->updated_at,
+                'deleted_at'  => $row->deleted_at,
+
+                // 🔥 SAME FORMAT AS BEFORE
+                'last_trigger' => $row->t_TIME ? [
+                    'DEVICE' => $row->t_DEVICE,
+                    'TIME'   => $row->t_TIME,
+                    'BEGIN'  => $row->BEGIN,
+                    'LAST'   => $row->LAST,
+                    'EVENT'  => $row->EVENT,
+                    'ACTIVE' => $row->ACTIVE,
+                    'PIR'    => $row->PIR,
+                    'TOF'    => $row->TOF,
+                    'UV'     => $row->UV,
+                    'MM'     => $row->MM,
+                    'TEMP'   => $row->TEMP,
+                ] : null,
+            ];
         });
 
-        // ✅ Filters
-        $query->when($request->car, fn($q, $car) => $q->where('CAR', $car))
-            ->when($request->type, fn($q, $type) => $q->where('TYPE', $type))
-            ->when($request->car_link, fn($q, $link) => $q->where('CAR_LINK', $link));
-
-        // ✅ Date filters
-        $query->when($request->start_date && $request->end_date, function ($q) use ($request) {
-            $q->whereBetween('INSTALL', [$request->start_date, $request->end_date]);
-        })->when($request->INSTALL, function ($q, $install) {
-            $q->whereDate('INSTALL', $install);
-        });
-
-        // ✅ Partial match filters
-        $query->when($request->p1, fn($q, $p1) => $q->where('P1', 'LIKE', "%{$p1}%"))
-            ->when($request->p2, fn($q, $p2) => $q->where('P2', 'LIKE', "%{$p2}%"));
-
-        // ✅ Pagination
-        $perPage = $request->input('per_page', 10);
-
-        // ✅ Eager load latest trigger (NO LOOP, NO N+1)
-        $devices = $query
-            ->with('lastTrigger')
-            ->paginate($perPage);
-
-        // ✅ Custom structured response
-        $response = [
-            'data' => $devices->items(),
+        return (new self)->successResponse([
+            'data' => $data,
             'pagination' => [
-                'page' => $devices->currentPage(),
-                'per_page' => $devices->perPage(),
-                'total' => $devices->total(),
-                'last_page' => $devices->lastPage(),
+                'page'      => $page->currentPage(),
+                'per_page'  => $page->perPage(),
+                'total'     => $page->total(),
+                'last_page' => $page->lastPage(),
             ]
-        ];
-
-        return (new self)->successResponse(
-            $response,
-            ApiMessages::DEVICE_GET_SUCCESS,
-            200
-        );
+        ], ApiMessages::DEVICE_GET_SUCCESS);
     }
-
-
 
     public static function getDeviceById($id)
     {
