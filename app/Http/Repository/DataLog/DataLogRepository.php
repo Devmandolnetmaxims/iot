@@ -20,11 +20,6 @@ class DataLogRepository
             $query->where('DEVICE', $request->device);
         }
 
-        // Optional date range filter (for later use)
-        // if ($request->filled('from') && $request->filled('to')) {
-        //     $query->whereBetween('TIME', [$request->from, $request->to]);
-        // }
-
         // Pagination setup
         $page = max((int) $request->get('page', 1), 1);
         $perPage = max((int) $request->get('per_page', 10), 10);
