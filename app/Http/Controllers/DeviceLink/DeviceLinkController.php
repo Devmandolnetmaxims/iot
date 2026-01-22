@@ -20,7 +20,7 @@ class DeviceLinkController extends Controller
     }
 
     // Update function
-    public function update(Request $request, $id) {
+    public function update(DeviceLinkCreateRequest $request, $id) {
         return DeviceLinkRepository::UpdateDeviceLink($id, $request->all());
     }
 

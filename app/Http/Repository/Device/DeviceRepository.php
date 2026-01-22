@@ -14,138 +14,30 @@ class DeviceRepository
 {
     use ApiResponseTrait;
 
-    // public static function Index($request)
-    // {
-    //     $self = new self;
-    //     $query = Device::query();
-
-    //     // 🔹 Global search across DEVICE, CAR, CAR_LINK
-    //     if ($request->filled('search')) {
-    //         $search = $request->search;
-    //         $query->where(function ($q) use ($search) {
-    //             $q->where('DEVICE', 'LIKE', "%{$search}%")
-    //             ->orWhere('CAR', 'LIKE', "%{$search}%")
-    //             ->orWhere('CAR_LINK', 'LIKE', "%{$search}%");
-    //         });
-    //     }
-
-    //     // 🔹 Filters
-    //     if ($request->filled('car')) {
-    //         $query->where('CAR', $request->car);
-    //     }
-    //     if ($request->filled('type')) {
-    //         $query->where('TYPE', $request->type);
-    //     }
-    //     if ($request->filled('car_link')) {
-    //         $query->where('CAR_LINK', $request->car_link);
-    //     }
-
-    //     // 🔹 Date filters
-    //     if ($request->filled('start_date') && $request->filled('end_date')) {
-    //         $query->whereBetween('INSTALL', [$request->start_date, $request->end_date]);
-    //     } elseif ($request->filled('INSTALL')) {
-    //         $query->whereDate('INSTALL', $request->INSTALL);
-    //     }
-
-    //     // 🔹 Partial matches
-    //     if ($request->filled('p1')) {
-    //         $query->where('P1', 'LIKE', "%{$request->p1}%");
-    //     }
-    //     if ($request->filled('p2')) {
-    //         $query->where('P2', 'LIKE', "%{$request->p2}%");
-    //     }
-
-    //     // 🔹 Pagination
-    //     $perPage = $request->input('per_page', 10);
-    //     $page = $request->input('page', 1);
-
-    //     $devices = $query->paginate($perPage, ['*'], 'page', $page);
-
-    //     // 🔹 Attach latest trigger data
-    //     $devices->getCollection()->transform(function ($device) {
-    //         $latestTrigger = TestMuguhwa::where('DEVICE', $device->DEVICE)
-    //             ->orderBy('TIME', 'desc')
-    //             ->first();
-
-    //         $device->last_trigger = $latestTrigger;
-    //         return $device;
-    //     });
-
-    //     // 🔹 Custom structured response
-    //     $response = [
-    //         'data' => $devices->items(),
-    //         'pagination' => [
-    //             'page' => $devices->currentPage(),
-    //             'per_page' => $devices->perPage(),
-    //             'total' => $devices->total(),
-    //             'last_page' => $devices->lastPage(),
-    //         ]
-    //     ];
-
-    //     return $self->successResponse($response, ApiMessages::DEVICE_GET_SUCCESS, 200);
-    // }
-
-    // public static function Index($request)
-    // {
-
-    //     $query = Device::query();
-
-    //     // ✅ Global search
-    //     $query->when($request->search, function ($q, $search) {
-    //         $q->where(function ($sub) use ($search) {
-    //             $sub->where('DEVICE', 'LIKE', "%{$search}%")
-    //                 ->orWhere('CAR', 'LIKE', "%{$search}%")
-    //                 ->orWhere('CAR_LINK', 'LIKE', "%{$search}%");
-    //         });
-    //     });
-
-    //     // ✅ Filters
-    //     $query->when($request->car, fn($q, $car) => $q->where('CAR', $car))
-    //         ->when($request->type, fn($q, $type) => $q->where('TYPE', $type))
-    //         ->when($request->car_link, fn($q, $link) => $q->where('CAR_LINK', $link));
-
-    //     // ✅ Date filters
-    //     $query->when($request->start_date && $request->end_date, function ($q) use ($request) {
-    //         $q->whereBetween('INSTALL', [$request->start_date, $request->end_date]);
-    //     })->when($request->INSTALL, function ($q, $install) {
-    //         $q->whereDate('INSTALL', $install);
-    //     });
-
-    //     // ✅ Partial match filters
-    //     $query->when($request->p1, fn($q, $p1) => $q->where('P1', 'LIKE', "%{$p1}%"))
-    //         ->when($request->p2, fn($q, $p2) => $q->where('P2', 'LIKE', "%{$p2}%"));
-
-    //     // ✅ Pagination
-    //     $perPage = $request->input('per_page', 10);
-
-    //     // ✅ Eager load latest trigger (NO LOOP, NO N+1)
-    //     $devices = $query
-    //         ->with('lastTrigger')
-    //         ->paginate($perPage);
-
-    //     // ✅ Custom structured response
-    //     $response = [
-    //         'data' => $devices->items(),
-    //         'pagination' => [
-    //             'page' => $devices->currentPage(),
-    //             'per_page' => $devices->perPage(),
-    //             'total' => $devices->total(),
-    //             'last_page' => $devices->lastPage(),
-    //         ]
-    //     ];
-
-    //     return (new self)->successResponse(
-    //         $response,
-    //         ApiMessages::DEVICE_GET_SUCCESS,
-    //         200
-    //     );
-    // }
-
     public static function Index($request)
     {
         $perPage = min((int) $request->input('per_page', 10), 300);
 
         // 1️⃣ Subquery: latest TIME per DEVICE
+        // $latestTime = DB::table('TestMuguhwa')
+        //     ->select('DEVICE', DB::raw('MAX(TIME) as TIME'))
+        //     ->groupBy('DEVICE');
+        $latestTime = DB::table('TestMuguhwa')
+        ->select([
+            'DEVICE',
+            'TIME',
+            DB::raw('MAX(BEGIN) as BEGIN'),
+            DB::raw('MAX(LAST) as LAST'),
+            DB::raw('MAX(EVENT) as EVENT'),
+            DB::raw('MAX(ACTIVE) as ACTIVE'),
+            DB::raw('MAX(PIR) as PIR'),
+            DB::raw('MAX(TOF) as TOF'),
+            DB::raw('MAX(UV) as UV'),
+            DB::raw('MAX(MM) as MM'),
+            DB::raw('MAX(TEMP) as TEMP'),
+        ])
+        ->groupBy('DEVICE', 'TIME');
+
         $latestTime = DB::table('TestMuguhwa')
             ->select('DEVICE', DB::raw('MAX(TIME) as TIME'))
             ->groupBy('DEVICE');
@@ -208,6 +100,27 @@ class DeviceRepository
                 $request->start_date,
                 $request->end_date
             ]);
+        }
+
+        /* ---------- Sorting Logic ---------- */
+
+        // Default sort if no parameters are provided
+        $sortColumn = $request->input('sort_by', 'd.DEVICE'); // Options: device, install, last_trigger
+        $sortOrder = $request->input('sort_order', 'asc');   // Options: asc, desc
+
+        // Map request keys to actual database columns
+        switch ($sortColumn) {
+            case 'install':
+                $query->orderBy('d.INSTALL', $sortOrder);
+                break;
+            case 'last_trigger':
+                // We sort by the TIME column joined from the TestMuguhwa table
+                $query->orderBy('t.TIME', $sortOrder);
+                break;
+            case 'device':
+            default:
+                $query->orderBy('d.DEVICE', $sortOrder);
+                break;
         }
 
         // 3️⃣ Pagination
