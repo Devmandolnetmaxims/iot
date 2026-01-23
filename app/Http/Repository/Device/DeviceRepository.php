@@ -105,7 +105,7 @@ class DeviceRepository
         /* ---------- Sorting Logic ---------- */
 
         // Default sort if no parameters are provided
-        $sortColumn = $request->input('sort_by', 'd.DEVICE'); // Options: device, install, last_trigger
+        $sortColumn = $request->input('sort_by', 'd.DEVICE'); // Options: device, install, last_trigger, CAR
         $sortOrder = $request->input('sort_order', 'asc');   // Options: asc, desc
 
         // Map request keys to actual database columns
@@ -118,6 +118,11 @@ class DeviceRepository
                 $query->orderBy('t.TIME', $sortOrder);
                 break;
             case 'device':
+                $query->orderBy('d.DEVICE', $sortOrder);
+                break;
+            case 'car':
+                $query->orderBy('d.CAR', $sortOrder);
+                break;
             default:
                 $query->orderBy('d.DEVICE', $sortOrder);
                 break;

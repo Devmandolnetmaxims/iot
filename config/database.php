@@ -113,6 +113,16 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        'external_db' => [
+        'driver' => 'mysql',
+        'host' => env('EXT_DB_HOST', '127.0.0.1'),
+        'port' => env('EXT_DB_PORT', '3306'),
+        'database' => env('EXT_DB_DATABASE', 'mysql'),
+        'username' => env('EXT_DB_USERNAME', 'root'),
+        'password' => env('EXT_DB_PASSWORD', ''),
+        // ... other settings same as your default
+        ],
+
     ],
 
     /*

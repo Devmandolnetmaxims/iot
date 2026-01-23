@@ -53,9 +53,25 @@ class AnalyticsRepository {
             ->orderBy('a.device')
             ->get();
 
+        // Color Details
+        $counts = $data->countBy('final_color');
+        $logDetails = collect([
+            ['color' => 'GREEN',   'description' => 'Healthy (UV ON)'],
+            ['color' => 'BLUE',    'description' => 'Network Missing'],
+            ['color' => 'CYAN',    'description' => 'Network Malfunction'],
+            ['color' => 'ORANGE',  'description' => 'Temp Problem'],
+            ['color' => 'YELLOW',  'description' => 'TOF / Blocked'],
+            ['color' => 'MAGENTA', 'description' => 'Hardware Failure'],
+        ])->map(function ($item) use ($counts) {
+            // Get count from our collection, default to 0 if color isn't present
+            $item['count'] = $counts->get($item['color'], 0);
+            return $item;
+        });
+
         return response()->json([
             'success' => true,
             'data'    => $data,
+            'logDetails' => $logDetails
         ], 200);
     }
 

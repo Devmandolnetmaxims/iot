@@ -24,7 +24,7 @@ class CreateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'DEVICE' => 'required|unique:DeviceInfo2,DEVICE',
+            'DEVICE' => 'required|unique:DeviceInfo2,DEVICE|max:4',
         ];
     }
 

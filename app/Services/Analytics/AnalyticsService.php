@@ -9,9 +9,98 @@ use Carbon\Carbon;
 class AnalyticsService
 {
     // Load 6 hourse raw data in temp table
+    // public static function Load6hrawdata($request = null)
+    // {
+    //     Log::info('Load6hrawdata started');
+
+    //     // Safely extract time
+    //     if ($request->time) {
+    //         $time = $request->time;
+    //         Log::info('Time received from request', ['time' => $time]);
+    //     } else {
+    //         $time = null;
+    //         Log::info('No time provided, using current time');
+    //     }
+
+    //     // 1 Determine snapshot time
+    //     $snapshotTime = $time
+    //         ? Carbon::parse($time, 'Asia/Kolkata')
+    //         : Carbon::now('Asia/Kolkata');
+
+    //     Log::info('Snapshot time determined', [
+    //         'snapshot_time' => $snapshotTime->toDateTimeString(),
+    //     ]);
+
+    //     // Align to 6-hour boundary
+    //     $snapshotHour = floor($snapshotTime->hour / 6) * 6;
+
+    //     $snapshotTime
+    //         ->setHour($snapshotHour)
+    //         ->setMinute(0)
+    //         ->setSecond(0);
+
+    //     $from = $snapshotTime->copy()->subHours(6);
+    //     $to   = $snapshotTime;
+
+    //     Log::info('6-hour window calculated', [
+    //         'from' => $from->toDateTimeString(),
+    //         'to'   => $to->toDateTimeString(),
+    //     ]);
+
+    //     try {
+    //         // 2 Check if data already exists
+    //         $exists = DB::table('device_logs_6h_staging')
+    //             ->where('time', '>=', $from)
+    //             ->where('time', '<', $to)
+    //             ->exists();
+
+    //         if ($exists) {
+    //             Log::info('Skipping load '.$from.' – '.$to.' data already present');
+    //             return true;
+    //         }
+
+    //         // 3 Clear staging table
+    //         DB::statement('TRUNCATE TABLE device_logs_6h_staging');
+    //         Log::info('Staging table truncated');
+
+    //         // 4 Insert last 6 hours data
+    //         DB::statement("
+    //             INSERT INTO device_logs_6h_staging
+    //             (
+    //                 device, time, begin, last, event,
+    //                 active, pir, tof, uv, mm, temp,
+    //                 created_at, updated_at
+    //             )
+    //             SELECT
+    //                 device, time, begin, last, event,
+    //                 active, pir, tof, uv, mm, temp,
+    //                 NOW(), NOW()
+    //             FROM TestMuguhwa
+    //             WHERE time >= ? AND time < ?
+    //         ", [$from, $to]);
+
+    //         $count = DB::table('device_logs_6h_staging')->count();
+
+    //         Log::info('Load6hrawdata completed successfully', [
+    //             'rows_inserted' => $count,
+    //         ]);
+
+    //         // AnalyticsService::CalculatErrorState();
+    //         return true;
+
+    //     } catch (\Throwable $e) {
+    //         Log::error('Load6hrawdata failed', [
+    //             'message' => $e->getMessage(),
+    //             'trace'   => $e->getTraceAsString(),
+    //         ]);
+
+    //         return false;
+    //     }
+    // }  // working
+
     public static function Load6hrawdata($request = null)
     {
-        Log::info('Load6hrawdata started');
+        Log::info('Load6hrawdata started (Cross-DB Sync)');
 
         // Safely extract time
         if ($request->time) {
@@ -21,31 +110,14 @@ class AnalyticsService
             $time = null;
             Log::info('No time provided, using current time');
         }
-
-        // 1 Determine snapshot time
-        $snapshotTime = $time
-            ? Carbon::parse($time, 'Asia/Kolkata')
-            : Carbon::now('Asia/Kolkata');
-
-        Log::info('Snapshot time determined', [
-            'snapshot_time' => $snapshotTime->toDateTimeString(),
-        ]);
-
-        // Align to 6-hour boundary
+        // 1. Determine time window (Keep your existing logic)
+        $time = $request && isset($request->time) ? $request->time : null;
+        $snapshotTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
         $snapshotHour = floor($snapshotTime->hour / 6) * 6;
-
-        $snapshotTime
-            ->setHour($snapshotHour)
-            ->setMinute(0)
-            ->setSecond(0);
+        $snapshotTime->setTime($snapshotHour, 0, 0);
 
         $from = $snapshotTime->copy()->subHours(6);
         $to   = $snapshotTime;
-
-        Log::info('6-hour window calculated', [
-            'from' => $from->toDateTimeString(),
-            'to'   => $to->toDateTimeString(),
-        ]);
 
         try {
             // 2 Check if data already exists
@@ -59,41 +131,30 @@ class AnalyticsService
                 return true;
             }
 
-            // 3 Clear staging table
-            DB::statement('TRUNCATE TABLE device_logs_6h_staging');
-            Log::info('Staging table truncated');
+            DB::table('device_logs_6h_staging')->truncate();
 
-            // 4 Insert last 6 hours data
-            DB::statement("
-                INSERT INTO device_logs_6h_staging
-                (
-                    device, time, begin, last, event,
-                    active, pir, tof, uv, mm, temp,
-                    created_at, updated_at
-                )
-                SELECT
-                    device, time, begin, last, event,
-                    active, pir, tof, uv, mm, temp,
-                    NOW(), NOW()
-                FROM TestMuguhwa
-                WHERE time >= ? AND time < ?
-            ", [$from, $to]);
+            // Increase chunk size to 5000 to reduce network "chatter"
+            DB::connection('external_db')->table('TestMuguhwa')
+                ->where('TIME', '>=', $from)
+                ->where('TIME', '<', $to)
+                ->orderBy('TIME')
+                ->chunk(5000, function ($rows) {
+                    // Convert collection to array and insert directly
+                    $data = json_decode(json_encode($rows), true);
 
-            $count = DB::table('device_logs_6h_staging')->count();
+                    // Add timestamps manually if not in external DB
+                    $now = now();
+                    foreach($data as &$row) {
+                        $row['created_at'] = $now;
+                        $row['updated_at'] = $now;
+                    }
 
-            Log::info('Load6hrawdata completed successfully', [
-                'rows_inserted' => $count,
-            ]);
+                    DB::table('device_logs_6h_staging')->insert($data);
+                });
 
-            // AnalyticsService::CalculatErrorState();
             return true;
-
         } catch (\Throwable $e) {
-            Log::error('Load6hrawdata failed', [
-                'message' => $e->getMessage(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-
+            Log::error('Sync failed: ' . $e->getMessage());
             return false;
         }
     }
@@ -531,6 +592,28 @@ class AnalyticsService
         ");
     }
 
+    private static function UVCheckPersistent3Days()
+    {
+        $threeDaysAgo = now()->subDays(3)->toDateTimeString();
+
+        DB::statement("
+            UPDATE device_6h_analytics a
+            JOIN (
+                SELECT device
+                FROM device_6h_analytics
+                WHERE created_at >= '{$threeDaysAgo}'
+                GROUP BY device
+                /* If the sum of all passes over 3 days is 0, it never turned ON */
+                HAVING SUM(uv_pass_30 + uv_pass_200 + uv_pass_1000) = 0
+                /* Ensure we have at least 10 records to avoid false alarms on new devices */
+                AND COUNT(*) >= 10
+            ) persistent ON a.device = persistent.device
+            SET a.uv_persistent_fail = 1
+            /* Only update the most recent record we are currently processing */
+            WHERE a.created_at >= '" . now()->subMinutes(30)->toDateTimeString() . "'
+        ");
+    }
+
     private static function ResolveFinalState()
     {
         DB::statement("
@@ -539,6 +622,9 @@ class AnalyticsService
                 final_color = CASE
                     -- 🔵 Network issue
                     WHEN network_missing = 1 THEN 'BLUE'
+
+                    -- 💎 Cyan: 3-Day Persistent UV Failure (High Priority)
+                    WHEN uv_persistent_fail = 1 THEN 'CYAN'
 
                     -- 🟡 TOF issue (locks state)
                     WHEN tof_issue = 1 THEN 'YELLOW'
@@ -556,6 +642,9 @@ class AnalyticsService
                 decision_reason = CASE
                     WHEN network_missing = 1
                         THEN 'No data in this 6h window'
+
+                    WHEN uv_persistent_fail = 1
+                        THEN 'Critical: No UV ON detected for 3 consecutive days'
 
                     WHEN tof_issue = 1
                         THEN 'TOF issue detected'
