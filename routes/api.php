@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Device\DeviceController;
@@ -65,3 +66,10 @@ Route::get('/user', function (Request $request) {
 Route::get('/speed',function() {
     return "hasds";
 });
+
+Route::get('test-external-db', function() {
+    $connection = DB::connection('external_db')->table('DeviceInfo2')->get();
+    dd($connection);
+
+});
+

@@ -7,52 +7,6 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AnalyticsRepository {
-    // public static function getDeviceColors($request)
-    // {
-    //     // Validation
-    //     $validator = Validator::make($request->query(), [
-    //         'date' => 'required|date',
-    //         'time' => 'required|date_format:H:i:s',
-    //     ]);
-
-    //     if ($validator->fails()) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'errors'  => $validator->errors(),
-    //         ], 422);
-    //     }
-
-    //     $dateTime = $request['date'] . ' ' . $request['time'];
-
-    //     // Check if this clock_time exists at all
-    //     $exists = DB::table('device_6h_analytics')
-    //         ->where('clock_time', $dateTime)
-    //         ->exists();
-
-    //     if (!$exists) {
-    //         return response()->json([
-    //             'success' => true,
-    //             'data'    => [],
-    //             'message' => 'No data for this time window'
-    //         ], 200);
-    //     }
-
-    //     // Fetch colors directly
-    //     $data = DB::table('device_6h_analytics')
-    //         ->where('clock_time', $dateTime)
-    //         ->select(
-    //             'device',
-    //             'final_color'
-    //         )
-    //         ->orderBy('device')
-    //         ->get();
-
-    //     return response()->json([
-    //         'success' => true,
-    //         'data'    => $data,
-    //     ], 200);
-    // }
-
     public static function getDeviceColors($request)
     {
         // Validation
@@ -99,9 +53,25 @@ class AnalyticsRepository {
             ->orderBy('a.device')
             ->get();
 
+        // Color Details
+        $counts = $data->countBy('final_color');
+        $logDetails = collect([
+            ['color' => 'GREEN',   'description' => 'Healthy (UV ON)'],
+            ['color' => 'BLUE',    'description' => 'Network Missing'],
+            ['color' => 'CYAN',    'description' => 'Network Malfunction'],
+            ['color' => 'ORANGE',  'description' => 'Temp Problem'],
+            ['color' => 'YELLOW',  'description' => 'TOF / Blocked'],
+            ['color' => 'MAGENTA', 'description' => 'Hardware Failure'],
+        ])->map(function ($item) use ($counts) {
+            // Get count from our collection, default to 0 if color isn't present
+            $item['count'] = $counts->get($item['color'], 0);
+            return $item;
+        });
+
         return response()->json([
             'success' => true,
             'data'    => $data,
+            'logDetails' => $logDetails
         ], 200);
     }
 

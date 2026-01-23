@@ -9,9 +9,98 @@ use Carbon\Carbon;
 class AnalyticsService
 {
     // Load 6 hourse raw data in temp table
+    // public static function Load6hrawdata($request = null)
+    // {
+    //     Log::info('Load6hrawdata started');
+
+    //     // Safely extract time
+    //     if ($request->time) {
+    //         $time = $request->time;
+    //         Log::info('Time received from request', ['time' => $time]);
+    //     } else {
+    //         $time = null;
+    //         Log::info('No time provided, using current time');
+    //     }
+
+    //     // 1 Determine snapshot time
+    //     $snapshotTime = $time
+    //         ? Carbon::parse($time, 'Asia/Kolkata')
+    //         : Carbon::now('Asia/Kolkata');
+
+    //     Log::info('Snapshot time determined', [
+    //         'snapshot_time' => $snapshotTime->toDateTimeString(),
+    //     ]);
+
+    //     // Align to 6-hour boundary
+    //     $snapshotHour = floor($snapshotTime->hour / 6) * 6;
+
+    //     $snapshotTime
+    //         ->setHour($snapshotHour)
+    //         ->setMinute(0)
+    //         ->setSecond(0);
+
+    //     $from = $snapshotTime->copy()->subHours(6);
+    //     $to   = $snapshotTime;
+
+    //     Log::info('6-hour window calculated', [
+    //         'from' => $from->toDateTimeString(),
+    //         'to'   => $to->toDateTimeString(),
+    //     ]);
+
+    //     try {
+    //         // 2 Check if data already exists
+    //         $exists = DB::table('device_logs_6h_staging')
+    //             ->where('time', '>=', $from)
+    //             ->where('time', '<', $to)
+    //             ->exists();
+
+    //         if ($exists) {
+    //             Log::info('Skipping load '.$from.' – '.$to.' data already present');
+    //             return true;
+    //         }
+
+    //         // 3 Clear staging table
+    //         DB::statement('TRUNCATE TABLE device_logs_6h_staging');
+    //         Log::info('Staging table truncated');
+
+    //         // 4 Insert last 6 hours data
+    //         DB::statement("
+    //             INSERT INTO device_logs_6h_staging
+    //             (
+    //                 device, time, begin, last, event,
+    //                 active, pir, tof, uv, mm, temp,
+    //                 created_at, updated_at
+    //             )
+    //             SELECT
+    //                 device, time, begin, last, event,
+    //                 active, pir, tof, uv, mm, temp,
+    //                 NOW(), NOW()
+    //             FROM TestMuguhwa
+    //             WHERE time >= ? AND time < ?
+    //         ", [$from, $to]);
+
+    //         $count = DB::table('device_logs_6h_staging')->count();
+
+    //         Log::info('Load6hrawdata completed successfully', [
+    //             'rows_inserted' => $count,
+    //         ]);
+
+    //         // AnalyticsService::CalculatErrorState();
+    //         return true;
+
+    //     } catch (\Throwable $e) {
+    //         Log::error('Load6hrawdata failed', [
+    //             'message' => $e->getMessage(),
+    //             'trace'   => $e->getTraceAsString(),
+    //         ]);
+
+    //         return false;
+    //     }
+    // }  // working
+
     public static function Load6hrawdata($request = null)
     {
-        Log::info('Load6hrawdata started');
+        Log::info('Load6hrawdata started (Cross-DB Sync)');
 
         // Safely extract time
         if ($request->time) {
@@ -21,68 +110,51 @@ class AnalyticsService
             $time = null;
             Log::info('No time provided, using current time');
         }
-
-        // 1️⃣ Determine snapshot time
-        $snapshotTime = $time
-            ? Carbon::parse($time, 'Asia/Kolkata')
-            : Carbon::now('Asia/Kolkata');
-
-        Log::info('Snapshot time determined', [
-            'snapshot_time' => $snapshotTime->toDateTimeString(),
-        ]);
-
-        // Align to 6-hour boundary
+        // 1. Determine time window (Keep your existing logic)
+        $time = $request && isset($request->time) ? $request->time : null;
+        $snapshotTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
         $snapshotHour = floor($snapshotTime->hour / 6) * 6;
-
-        $snapshotTime
-            ->setHour($snapshotHour)
-            ->setMinute(0)
-            ->setSecond(0);
+        $snapshotTime->setTime($snapshotHour, 0, 0);
 
         $from = $snapshotTime->copy()->subHours(6);
         $to   = $snapshotTime;
 
-        Log::info('6-hour window calculated', [
-            'from' => $from->toDateTimeString(),
-            'to'   => $to->toDateTimeString(),
-        ]);
-
         try {
-            // 2️⃣ Clear staging table
-            DB::statement('TRUNCATE TABLE device_logs_6h_staging');
-            Log::info('Staging table truncated');
+            // 2 Check if data already exists
+            $exists = DB::table('device_logs_6h_staging')
+                ->where('time', '>=', $from)
+                ->where('time', '<', $to)
+                ->exists();
 
-            // 3️⃣ Insert last 6 hours data
-            DB::statement("
-                INSERT INTO device_logs_6h_staging
-                (
-                    device, time, begin, last, event,
-                    active, pir, tof, uv, mm, temp,
-                    created_at, updated_at
-                )
-                SELECT
-                    device, time, begin, last, event,
-                    active, pir, tof, uv, mm, temp,
-                    NOW(), NOW()
-                FROM TestMuguhwa
-                WHERE time >= ? AND time < ?
-            ", [$from, $to]);
+            if ($exists) {
+                Log::info('Skipping load '.$from.' – '.$to.' data already present');
+                return true;
+            }
 
-            $count = DB::table('device_logs_6h_staging')->count();
+            DB::table('device_logs_6h_staging')->truncate();
 
-            Log::info('Load6hrawdata completed successfully', [
-                'rows_inserted' => $count,
-            ]);
+            // Increase chunk size to 5000 to reduce network "chatter"
+            DB::connection('external_db')->table('TestMuguhwa')
+                ->where('TIME', '>=', $from)
+                ->where('TIME', '<', $to)
+                ->orderBy('TIME')
+                ->chunk(5000, function ($rows) {
+                    // Convert collection to array and insert directly
+                    $data = json_decode(json_encode($rows), true);
 
-            // AnalyticsService::CalculatErrorState();
+                    // Add timestamps manually if not in external DB
+                    $now = now();
+                    foreach($data as &$row) {
+                        $row['created_at'] = $now;
+                        $row['updated_at'] = $now;
+                    }
+
+                    DB::table('device_logs_6h_staging')->insert($data);
+                });
+
             return true;
-
         } catch (\Throwable $e) {
-            Log::error('Load6hrawdata failed', [
-                'message' => $e->getMessage(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-
+            Log::error('Sync failed: ' . $e->getMessage());
             return false;
         }
     }
@@ -113,6 +185,9 @@ class AnalyticsService
         if(self::UVFailLast1000()) {
             Log::info('UVFailLast1000 completed successfully');
         }
+
+        self::ResolveFinalState();
+        Log::info('Calculate6hAnalytics completed');
     }
 
     // Check network issue
@@ -148,6 +223,19 @@ class AnalyticsService
             $windowEnd   = $windowStart->copy()->addHours(6);
 
             $clockTime = $windowStart->format('Y-m-d H:i:s');
+
+            // 🚫 Prevent duplicate processing for same 6h window
+            $alreadyProcessed = DB::table('device_6h_analytics')
+                ->where('clock_time', $clockTime)
+                ->exists();
+
+            if ($alreadyProcessed) {
+                Log::warning('NetworkIssue skipped – already processed for this window', [
+                    'clock_time' => $clockTime,
+                ]);
+
+                return false; // or true, depending on how you treat "already done"
+            }
 
             Log::info('6h Window Identified', [
                 'clock_time' => $clockTime,
@@ -221,163 +309,55 @@ class AnalyticsService
     }
 
     // Check TOF issue
-    // private static function TOFIssue() {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-    //         JOIN (
-    //             SELECT
-    //                 s.device,
-
-    //                 -- latest mm value
-    //                 SUBSTRING_INDEX(
-    //                     GROUP_CONCAT(s.mm ORDER BY s.time DESC),
-    //                     ',', 1
-    //                 ) AS latest_mm,
-
-    //                 -- count of TOF fault rows in 6h (diagnostics)
-    //                 SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
-
-    //             FROM device_logs_6h_staging s
-    //             GROUP BY s.device
-    //         ) t ON t.device = a.device
-
-    //         SET
-    //             a.tof_fault_count = t.tof_fault_count,
-
-    //             a.tof_issue = CASE
-    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
-    //                 ELSE 0
-    //             END,
-
-    //             a.final_color = CASE
-    //                 WHEN a.network_missing = 1 THEN a.final_color
-    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
-    //                 ELSE a.final_color
-    //             END,
-
-    //             a.decision_reason = CASE
-    //                 WHEN a.network_missing = 1 THEN a.decision_reason
-    //                 WHEN t.latest_mm BETWEEN 1 AND 30
-    //                     THEN 'TOF sensor fault (latest mm in 1–30 range)'
-    //                 ELSE a.decision_reason
-    //             END,
-
-    //             a.updated_at = NOW()
-
-    //         WHERE a.snapshot_time = (
-    //             SELECT MAX(snapshot_time) FROM device_6h_analytics
-    //         )
-    //     ");
-    // }
-    // private static function TOFIssue()
-    // {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-
-    //         /* latest snapshot time */
-    //         JOIN (
-    //             SELECT MAX(snapshot_time) AS max_snapshot_time
-    //             FROM device_6h_analytics
-    //         ) mx ON a.snapshot_time = mx.max_snapshot_time
-
-    //         /* TOF diagnostics per device */
-    //         JOIN (
-    //             SELECT
-    //                 s.device,
-
-    //                 -- latest mm value
-    //                 SUBSTRING_INDEX(
-    //                     GROUP_CONCAT(s.mm ORDER BY s.time DESC),
-    //                     ',', 1
-    //                 ) AS latest_mm,
-
-    //                 -- count of TOF fault rows in 6h
-    //                 SUM(s.mm BETWEEN 1 AND 30) AS tof_fault_count
-
-    //             FROM device_logs_6h_staging s
-    //             GROUP BY s.device
-    //         ) t ON t.device = a.device
-
-    //         SET
-    //             a.tof_fault_count = t.tof_fault_count,
-
-    //             a.tof_issue = CASE
-    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 1
-    //                 ELSE 0
-    //             END,
-
-    //             a.final_color = CASE
-    //                 WHEN a.network_missing = 1 THEN a.final_color
-    //                 WHEN t.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
-    //                 ELSE a.final_color
-    //             END,
-
-    //             a.decision_reason = CASE
-    //                 WHEN a.network_missing = 1 THEN a.decision_reason
-    //                 WHEN t.latest_mm BETWEEN 1 AND 30
-    //                     THEN 'TOF sensor fault (latest mm in 1–30 range)'
-    //                 ELSE a.decision_reason
-    //             END,
-
-    //             a.updated_at = NOW()
-    //     ");
-    // }
-
     private static function TOFIssue()
-{
-    DB::statement("
-        UPDATE device_6h_analytics a
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
 
-        /* latest snapshot time */
-        JOIN (
-            SELECT MAX(snapshot_time) AS max_snapshot_time
-            FROM device_6h_analytics
-        ) mx ON a.snapshot_time = mx.max_snapshot_time
-
-        /* latest mm per device */
-        JOIN (
-            SELECT s1.device, s1.mm AS latest_mm
-            FROM device_logs_6h_staging s1
+            /* latest snapshot time */
             JOIN (
-                SELECT device, MAX(time) AS max_time
+                SELECT MAX(snapshot_time) AS max_snapshot_time
+                FROM device_6h_analytics
+            ) mx ON a.snapshot_time = mx.max_snapshot_time
+
+            /* latest mm per device */
+            JOIN (
+                SELECT s1.device, s1.mm AS latest_mm
+                FROM device_logs_6h_staging s1
+                JOIN (
+                    SELECT device, MAX(time) AS max_time
+                    FROM device_logs_6h_staging
+                    GROUP BY device
+                ) s2
+                    ON s2.device = s1.device
+                AND s2.max_time = s1.time
+            ) lm ON lm.device = a.device
+
+            /* TOF fault count per device */
+            JOIN (
+                SELECT device, SUM(mm BETWEEN 1 AND 30) AS tof_fault_count
                 FROM device_logs_6h_staging
                 GROUP BY device
-            ) s2
-                ON s2.device = s1.device
-               AND s2.max_time = s1.time
-        ) lm ON lm.device = a.device
+            ) tc ON tc.device = a.device
 
-        /* TOF fault count per device */
-        JOIN (
-            SELECT device, SUM(mm BETWEEN 1 AND 30) AS tof_fault_count
-            FROM device_logs_6h_staging
-            GROUP BY device
-        ) tc ON tc.device = a.device
+            SET
+                a.tof_fault_count = tc.tof_fault_count,
 
-        SET
-            a.tof_fault_count = tc.tof_fault_count,
+                a.tof_issue = CASE
+                    WHEN lm.latest_mm BETWEEN 1 AND 30 THEN 1
+                    ELSE 0
+                END,
 
-            a.tof_issue = CASE
-                WHEN lm.latest_mm BETWEEN 1 AND 30 THEN 1
-                ELSE 0
-            END,
+                a.decision_reason = CASE
+                    WHEN a.network_missing = 1 THEN a.decision_reason
+                    WHEN lm.latest_mm BETWEEN 1 AND 30
+                        THEN 'TOF sensor fault (latest mm in 1–30 range)'
+                    ELSE a.decision_reason
+                END,
 
-            a.final_color = CASE
-                WHEN a.network_missing = 1 THEN a.final_color
-                WHEN lm.latest_mm BETWEEN 1 AND 30 THEN 'YELLOW'
-                ELSE a.final_color
-            END,
-
-            a.decision_reason = CASE
-                WHEN a.network_missing = 1 THEN a.decision_reason
-                WHEN lm.latest_mm BETWEEN 1 AND 30
-                    THEN 'TOF sensor fault (latest mm in 1–30 range)'
-                ELSE a.decision_reason
-            END,
-
-            a.updated_at = NOW()
-    ");
-}
+                a.updated_at = NOW()
+        ");
+    }
 
 
     // Check temp issue
@@ -397,10 +377,6 @@ class AnalyticsService
                 a.temp_issue = CASE
                     WHEN last_row.temp < 720 THEN 1
                     ELSE 0
-                END,
-                a.final_color = CASE
-                    WHEN last_row.temp < 720 AND a.network_missing = 0 THEN 'ORANGE'
-                    ELSE a.final_color
                 END,
                 a.decision_reason = CASE
                     WHEN last_row.temp < 720 AND a.network_missing = 0
@@ -437,8 +413,7 @@ class AnalyticsService
     //     ");
     // }
 
-    private static function UVCheckForLast30()
-    {
+    private static function UVCheckForLast30(){
         DB::statement("
             UPDATE device_6h_analytics a
             JOIN (
@@ -458,7 +433,6 @@ class AnalyticsService
             ) u ON TRIM(u.device) = TRIM(a.device)
             SET
                 a.uv_pass_30 = 1,
-                a.final_color = 'GREEN',
                 a.decision_reason = 'UV ON detected in last 30 records'
         ");
     }
@@ -491,7 +465,6 @@ class AnalyticsService
         DB::statement("UPDATE device_6h_analytics a
             SET
                 a.uv_pass_200 = 1,
-                a.final_color = 'GREEN',
                 a.decision_reason = 'UV ON detected in last 200 records'
             WHERE
                 (a.final_color IS NULL OR a.final_color = 'GREEN')
@@ -539,34 +512,33 @@ class AnalyticsService
     // }
 
     private static function UVCheckForLast1000()
-{
-    DB::statement("
-        UPDATE device_6h_analytics a
-        SET
-            a.uv_pass_1000 = 1,
-            a.final_color = 'GREEN',
-            a.decision_reason = 'UV ON detected in last 1000 records'
-        WHERE
-            (a.final_color IS NULL OR a.final_color = 'GREEN')
-            AND EXISTS (
-                SELECT 1
-                FROM (
-                    SELECT
-                        device,
-                        uv,
-                        @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
-                        @prev_device := device
-                    FROM device_logs_6h_staging
-                    CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
-                    ORDER BY device, time DESC
-                ) ranked
-                WHERE
-                    ranked.device = a.device
-                    AND ranked.rn <= 1000
-                    AND TRIM(UPPER(ranked.uv)) = 'ON'
-            )
-    ");
-}
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            SET
+                a.uv_pass_1000 = 1,
+                a.decision_reason = 'UV ON detected in last 1000 records'
+            WHERE
+                (a.final_color IS NULL OR a.final_color = 'GREEN')
+                AND EXISTS (
+                    SELECT 1
+                    FROM (
+                        SELECT
+                            device,
+                            uv,
+                            @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
+                            @prev_device := device
+                        FROM device_logs_6h_staging
+                        CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
+                        ORDER BY device, time DESC
+                    ) ranked
+                    WHERE
+                        ranked.device = a.device
+                        AND ranked.rn <= 1000
+                        AND TRIM(UPPER(ranked.uv)) = 'ON'
+                )
+        ");
+    }
 
     // private static function UVFailLast1000()
     // {
@@ -592,33 +564,100 @@ class AnalyticsService
     // }
 
     private static function UVFailLast1000()
-{
-    DB::statement("
-        UPDATE device_6h_analytics a
-        SET
-            a.uv_pass_1000 = 0,
-            a.final_color = 'MAGENTA',
-            a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
-        WHERE
-            (a.final_color IS NULL OR a.final_color = 'GREEN')
-            AND NOT EXISTS (
-                SELECT 1
-                FROM (
-                    SELECT
-                        device,
-                        uv,
-                        @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
-                        @prev_device := device
-                    FROM device_logs_6h_staging
-                    CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
-                    ORDER BY device, time DESC
-                ) ranked
-                WHERE
-                    ranked.device = a.device
-                    AND ranked.rn <= 1000
-                    AND TRIM(UPPER(ranked.uv)) = 'ON'
-            )
-    ");
-}
+    {
+        DB::statement("
+            UPDATE device_6h_analytics a
+            SET
+                a.uv_pass_1000 = 0,
+                a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
+            WHERE
+                (a.final_color IS NULL OR a.final_color = 'GREEN')
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM (
+                        SELECT
+                            device,
+                            uv,
+                            @rn := IF(@prev_device = device, @rn + 1, 1) AS rn,
+                            @prev_device := device
+                        FROM device_logs_6h_staging
+                        CROSS JOIN (SELECT @rn := 0, @prev_device := '') vars
+                        ORDER BY device, time DESC
+                    ) ranked
+                    WHERE
+                        ranked.device = a.device
+                        AND ranked.rn <= 1000
+                        AND TRIM(UPPER(ranked.uv)) = 'ON'
+                )
+        ");
+    }
+
+    private static function UVCheckPersistent3Days()
+    {
+        $threeDaysAgo = now()->subDays(3)->toDateTimeString();
+
+        DB::statement("
+            UPDATE device_6h_analytics a
+            JOIN (
+                SELECT device
+                FROM device_6h_analytics
+                WHERE created_at >= '{$threeDaysAgo}'
+                GROUP BY device
+                /* If the sum of all passes over 3 days is 0, it never turned ON */
+                HAVING SUM(uv_pass_30 + uv_pass_200 + uv_pass_1000) = 0
+                /* Ensure we have at least 10 records to avoid false alarms on new devices */
+                AND COUNT(*) >= 10
+            ) persistent ON a.device = persistent.device
+            SET a.uv_persistent_fail = 1
+            /* Only update the most recent record we are currently processing */
+            WHERE a.created_at >= '" . now()->subMinutes(30)->toDateTimeString() . "'
+        ");
+    }
+
+    private static function ResolveFinalState()
+    {
+        DB::statement("
+            UPDATE device_6h_analytics
+            SET
+                final_color = CASE
+                    -- 🔵 Network issue
+                    WHEN network_missing = 1 THEN 'BLUE'
+
+                    -- 💎 Cyan: 3-Day Persistent UV Failure (High Priority)
+                    WHEN uv_persistent_fail = 1 THEN 'CYAN'
+
+                    -- 🟡 TOF issue (locks state)
+                    WHEN tof_issue = 1 THEN 'YELLOW'
+
+                    -- 🟠 Temperature issue
+                    WHEN temp_issue = 1 THEN 'ORANGE'
+
+                    -- 🟢 UV OK if ANY window passes
+                    WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0 THEN 'GREEN'
+
+                    -- 🩷 UV completely OFF
+                    ELSE 'PINK'
+                END,
+
+                decision_reason = CASE
+                    WHEN network_missing = 1
+                        THEN 'No data in this 6h window'
+
+                    WHEN uv_persistent_fail = 1
+                        THEN 'Critical: No UV ON detected for 3 consecutive days'
+
+                    WHEN tof_issue = 1
+                        THEN 'TOF issue detected'
+
+                    WHEN temp_issue = 1
+                        THEN 'Temperature below threshold'
+
+                    WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0
+                        THEN 'UV ON detected in recent history'
+
+                    ELSE 'UV OFF in 30/200/1000 records'
+                END
+        ");
+    }
 
 }

@@ -73,7 +73,6 @@ class DeviceLinkRepository
         return $self->successResponse($data, ApiMessages::DEVICE_LINK_GET_SUCCESS, 200);
     }
 
-
     public static function CreateDeviceLink($data)
     {
         $self = new self;
@@ -81,7 +80,6 @@ class DeviceLinkRepository
         try {
             // Create new record
             $deviceLink = DeviceLink::create($validatedData);
-
             return $self->successResponse($deviceLink, ApiMessages::DEVICE_LINK_CREATED, 201);
         } catch (\Exception $e) {
             return $self->errorResponse(null, $e->getMessage(), 500);
