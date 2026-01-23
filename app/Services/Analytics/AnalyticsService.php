@@ -186,6 +186,10 @@ class AnalyticsService
             Log::info('UVFailLast1000 completed successfully');
         }
 
+        if(self::UVCheckPersistent3Days()) {
+            Log::info('UVCheckPersistent3Days completed successfully');
+        }
+
         self::ResolveFinalState();
         Log::info('Calculate6hAnalytics completed');
     }
@@ -636,7 +640,7 @@ class AnalyticsService
                     WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0 THEN 'GREEN'
 
                     -- 🩷 UV completely OFF
-                    ELSE 'PINK'
+                    ELSE 'MAGENTA'
                 END,
 
                 decision_reason = CASE
