@@ -122,6 +122,15 @@ return [
         'password' => env('EXT_DB_PASSWORD', ''),
         // ... other settings same as your default
         ],
+        'external_db2' => [
+        'driver' => 'mysql',
+        'host' => env('EXT_DB2_HOST', '127.0.0.1'),
+        'port' => env('EXT_DB2_PORT', '3306'),
+        'database' => env('EXT_DB2_DATABASE', 'mysql'),
+        'username' => env('EXT_DB2_USERNAME', 'root'),
+        'password' => env('EXT_DB2_PASSWORD', ''),
+        // ... other settings same as your default
+        ],
 
     ],
 
