@@ -162,6 +162,7 @@ class AnalyticsService
     // Calculate error state
     public static function CalculatErrorState($request = null)
     {
+        $currentDate = now()->toDateTimeString();
         // Check network issue. If within 6 hourse if device not sending any logs then we count it as offline or network issue.
         Log::info('Calculate6hAnalytics started');
         if(self::NetworkIssue()) {
@@ -186,11 +187,11 @@ class AnalyticsService
             Log::info('UVFailLast1000 completed successfully');
         }
 
-        if(self::UVCheckPersistent3Days()) {
+        if(self::UVCheckPersistent3Days($currentDate)) {
             Log::info('UVCheckPersistent3Days completed successfully');
         }
 
-        self::ResolveFinalState();
+        self::ResolveFinalState($currentDate);
         Log::info('Calculate6hAnalytics completed');
     }
 
@@ -390,33 +391,6 @@ class AnalyticsService
         ");
     }
 
-    //
-    // private static function UVCheckForLast30()
-    // {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-    //         JOIN (
-    //             SELECT DISTINCT device
-    //             FROM (
-    //                 SELECT
-    //                     device,
-    //                     uv,
-    //                     ROW_NUMBER() OVER (
-    //                         PARTITION BY device
-    //                         ORDER BY time DESC
-    //                     ) rn
-    //                 FROM device_logs_6h_staging
-    //             ) x
-    //             WHERE rn <= 30
-    //             AND TRIM(UPPER(uv)) = 'ON'
-    //         ) u ON TRIM(u.device) = TRIM(a.device)
-    //         SET
-    //             a.uv_pass_30 = 1,
-    //             a.final_color = 'GREEN',
-    //             a.decision_reason = 'UV ON detected in last 30 records';
-    //     ");
-    // }
-
     private static function UVCheckForLast30(){
         DB::statement("
             UPDATE device_6h_analytics a
@@ -440,29 +414,6 @@ class AnalyticsService
                 a.decision_reason = 'UV ON detected in last 30 records'
         ");
     }
-
-    // private static function UVCheckForLast200()
-    // {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-    //         SET
-    //             a.uv_pass_200 = 1,
-    //             a.final_color = 'GREEN',
-    //             a.decision_reason = 'UV ON detected in last 200 records'
-    //         WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
-    //         AND EXISTS (
-    //             SELECT 1
-    //             FROM (
-    //                 SELECT device, uv,
-    //                     ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
-    //                 FROM device_logs_6h_staging
-    //             ) t
-    //             WHERE t.device = a.device
-    //             AND t.rn <= 200
-    //             AND t.uv = 'ON'
-    //         )
-    //     ");
-    // }
 
     private static function UVCheckForLast200()
     {
@@ -491,29 +442,6 @@ class AnalyticsService
                 );"
             );
     }
-
-    // private static function UVCheckForLast1000()
-    // {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-    //         SET
-    //             a.uv_pass_1000 = 1,
-    //             a.final_color = 'GREEN',
-    //             a.decision_reason = 'UV ON detected in last 1000 records'
-    //         WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
-    //         AND EXISTS (
-    //             SELECT 1
-    //             FROM (
-    //                 SELECT device, uv,
-    //                     ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
-    //                 FROM device_logs_6h_staging
-    //             ) t
-    //             WHERE t.device = a.device
-    //             AND t.rn <= 1000
-    //             AND t.uv = 'ON'
-    //         )
-    //     ");
-    // }
 
     private static function UVCheckForLast1000()
     {
@@ -544,29 +472,6 @@ class AnalyticsService
         ");
     }
 
-    // private static function UVFailLast1000()
-    // {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-    //         SET
-    //             a.uv_pass_1000 = 0,
-    //             a.final_color = 'MAGENTA',
-    //             a.decision_reason = 'No UV ON detected in last 1000 records – manual attention required'
-    //         WHERE (a.final_color IS NULL OR a.final_color = 'GREEN')
-    //         AND NOT EXISTS (
-    //             SELECT 1
-    //             FROM (
-    //                 SELECT device, uv,
-    //                     ROW_NUMBER() OVER (PARTITION BY device ORDER BY time DESC) rn
-    //                 FROM device_logs_6h_staging
-    //             ) t
-    //             WHERE t.device = a.device
-    //             AND t.rn <= 1000
-    //             AND t.uv = 'ON'
-    //         )
-    //     ");
-    // }
-
     private static function UVFailLast1000()
     {
         DB::statement("
@@ -596,71 +501,150 @@ class AnalyticsService
         ");
     }
 
-    private static function UVCheckPersistent3Days()
-    {
-        $threeDaysAgo = now()->subDays(3)->toDateTimeString();
+    // private static function UVCheckPersistent3Days($currentDate)
+    // {
+    //     // 1. Define our time boundaries
+    //     $threeDaysAgoStart = Carbon::today()->subDays(3)->toDateTimeString(); // Start of 3 days ago
+    //     // $todayStart = Carbon::today()->toDateTimeString();                   // Start of today
+    //     $todayStart = $currentDate;                   // Start of today
+    //     // dd($todayStart, $threeDaysAgoStart);
+    //     // 2. Identify devices that had network_missing = 1 consistently over the last 3 days
+    //     // We use a subquery to find these specific device IDs
+    //     $failingDevices = DB::table('device_6h_analytics')
+    //         ->select('device')
+    //         ->where('clock_time', '>=', $threeDaysAgoStart)
+    //         ->where('clock_time', '<', $todayStart)
+    //         ->where('network_missing', 1)
+    //         ->groupBy('device')
+    //         // Ensures the failure exists across 3 distinct dates
+    //         ->havingRaw('COUNT(DISTINCT DATE(clock_time)) >= 3')
+    //         ->pluck('device');
 
-        DB::statement("
-            UPDATE device_6h_analytics a
-            JOIN (
-                SELECT device
-                FROM device_6h_analytics
-                WHERE created_at >= '{$threeDaysAgo}'
-                GROUP BY device
-                /* If the sum of all passes over 3 days is 0, it never turned ON */
-                HAVING SUM(uv_pass_30 + uv_pass_200 + uv_pass_1000) = 0
-                /* Ensure we have at least 10 records to avoid false alarms on new devices */
-                AND COUNT(*) >= 10
-            ) persistent ON a.device = persistent.device
-            SET a.uv_persistent_fail = 1
-            /* Only update the most recent record we are currently processing */
-            WHERE a.created_at >= '" . now()->subMinutes(30)->toDateTimeString() . "'
-        ");
+    //     // 3. If any devices match, update their records for "today"
+    //     if ($failingDevices->isNotEmpty()) {
+    //         DB::table('device_6h_analytics')
+    //             ->whereIn('device', $failingDevices)
+    //             ->where('created_at', '>=', $todayStart)
+    //             ->update([
+    //                 'uv_persistent_fail' => 1,
+    //                 'final_color' => 'CYAN',
+    //                 'updated_at' => now()
+    //             ]);
+    //     }
+    // }
+
+    private static function UVCheckPersistent3Days($currentDate)
+    {
+        $threeDaysAgo = Carbon::parse($currentDate)->subDays(2)->startOfDay()->toDateTimeString();
+
+        $failingDevices = DB::table('device_6h_analytics')
+            ->select('device')
+            ->where('clock_time', '>=', $threeDaysAgo)
+            ->where('clock_time', '<', $currentDate)
+            ->where('network_missing', 1)
+            ->groupBy('device')
+            // Logic: Device must have missing records across 3 distinct calendar dates
+            ->havingRaw('COUNT(DISTINCT DATE(clock_time)) >= 2')
+            ->pluck('device');
+
+        if ($failingDevices->isNotEmpty()) {
+            DB::table('device_6h_analytics')
+                ->whereIn('device', $failingDevices)
+                /* STRICT LOCK: Only update the specific record you are processing */
+                ->where('snapshot_time', $currentDate)
+                ->update([
+                    'uv_persistent_fail' => 1,
+                    'updated_at' => now()
+                ]);
+        }
     }
 
-    private static function ResolveFinalState()
+    // private static function ResolveFinalState($currentDate)
+    // {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics
+    //         SET
+    //             final_color = CASE
+    //                 -- 💎 Cyan: 3-Day Persistent UV Failure (High Priority)
+    //                 WHEN uv_persistent_fail = 1 THEN 'CYAN'
+
+    //                 -- 🔵 Network issue
+    //                 WHEN network_missing = 1 THEN 'BLUE'
+
+    //                 -- 🟡 TOF issue (locks state)
+    //                 WHEN tof_issue = 1 THEN 'YELLOW'
+
+    //                 -- 🟠 Temperature issue
+    //                 WHEN temp_issue = 1 THEN 'ORANGE'
+
+    //                 -- 🟢 UV OK if ANY window passes
+    //                 WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0 THEN 'GREEN'
+
+    //                 -- 🩷 UV completely OFF
+    //                 ELSE 'MAGENTA'
+    //             END,
+
+    //             decision_reason = CASE
+    //                 WHEN network_missing = 1
+    //                     THEN 'No data in this 6h window'
+
+    //                 WHEN uv_persistent_fail = 1
+    //                     THEN 'Critical : Device is faling for 3 days'
+
+    //                 WHEN tof_issue = 1
+    //                     THEN 'TOF issue detected'
+
+    //                 WHEN temp_issue = 1
+    //                     THEN 'Temperature below threshold'
+
+    //                 WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0
+    //                     THEN 'UV ON detected in recent history'
+
+    //                 ELSE 'UV OFF in 30/200/1000 records'
+    //             END
+    //     ");
+    // }
+    private static function ResolveFinalState($currentDate)
     {
+        // Ensure the date is in the correct string format for the SQL query
+        $snapshotTime = $currentDate;
+
         DB::statement("
             UPDATE device_6h_analytics
             SET
                 final_color = CASE
-                    -- 🔵 Network issue
-                    WHEN network_missing = 1 THEN 'BLUE'
-
-                    -- 💎 Cyan: 3-Day Persistent UV Failure (High Priority)
+                    /* 💎 CYAN: Check this FIRST. If the 3-day check found a failure,
+                    it must override the standard BLUE status. */
                     WHEN uv_persistent_fail = 1 THEN 'CYAN'
 
-                    -- 🟡 TOF issue (locks state)
+                    /* 🔵 BLUE: Standard network missing for this specific slot */
+                    WHEN network_missing = 1 THEN 'BLUE'
+
+                    /* 🟡 YELLOW: TOF issue */
                     WHEN tof_issue = 1 THEN 'YELLOW'
 
-                    -- 🟠 Temperature issue
+                    /* 🟠 ORANGE: Temp issue */
                     WHEN temp_issue = 1 THEN 'ORANGE'
 
-                    -- 🟢 UV OK if ANY window passes
+                    /* 🟢 GREEN: Successful UV ON */
                     WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0 THEN 'GREEN'
 
-                    -- 🩷 UV completely OFF
+                    /* 🩷 MAGENTA: UV is simply OFF but network is fine */
                     ELSE 'MAGENTA'
                 END,
 
                 decision_reason = CASE
-                    WHEN network_missing = 1
-                        THEN 'No data in this 6h window'
-
-                    WHEN uv_persistent_fail = 1
-                        THEN 'Critical: No UV ON detected for 3 consecutive days'
-
-                    WHEN tof_issue = 1
-                        THEN 'TOF issue detected'
-
-                    WHEN temp_issue = 1
-                        THEN 'Temperature below threshold'
-
-                    WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0
-                        THEN 'UV ON detected in recent history'
-
+                    WHEN uv_persistent_fail = 1 THEN 'Critical : Device is failing for 3 days'
+                    WHEN network_missing = 1 THEN 'No data in this 6h window'
+                    WHEN tof_issue = 1 THEN 'TOF issue detected'
+                    WHEN temp_issue = 1 THEN 'Temperature below threshold'
+                    WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0 THEN 'UV ON detected in recent history'
                     ELSE 'UV OFF in 30/200/1000 records'
                 END
+            /* THE FIX: This WHERE clause ensures that only the data for
+            the current date/time you are processing gets updated.
+            */
+            WHERE snapshot_time = '{$snapshotTime}'
         ");
     }
 
