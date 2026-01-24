@@ -1,0 +1,78 @@
+name: Deploy Laravel App via SFTP
+
+on:
+  push:
+    branches:
+      - preprod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Set remote path
+        run: |
+          case "${{ github.ref_name }}" in
+            prod)      echo "REMOTE_PATH=/www_root/preprod-api/" >> $GITHUB_ENV ;;
+            *)        echo "Invalid branch" && exit 1 ;;
+          esac
+
+      # ONLY REMOVE FILES THAT SHOULD NEVER GO TO PRODUCTION
+      # .github is PRESERVED — CI/CD SAFE
+      - name: Clean upload files (KEEP .github)
+        run: |
+          echo "Removing junk files..."
+          rm -rf .git
+          rm -rf node_modules vendor tests
+          rm -rf storage/logs
+          rm -rf storage/framework/cache
+          rm -rf storage/framework/sessions
+          rm -rf storage/framework/views
+          rm -f .env .env.*.local *.md *.yml *.yaml .gitignore .gitattributes
+          echo "Clean done. .github is safe."
+
+          mkdir -p storage/framework/cache/data
+          mkdir -p storage/framework/sessions
+          mkdir -p storage/framework/views
+          mkdir -p storage/logs
+          mkdir -p storage/app/public
+
+      - name: Deploy via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.PROD_FTP_SERVER }}
+          username: ${{ secrets.PROD_FTP_USERNAME }}
+          password: ${{ secrets.PROD_FTP_PASSWORD }}
+          port: 22
+          local_path: './'
+          remote_path: ${{ env.REMOTE_PATH }}
+          sftp_only: true
+
+      - name: Run Laravel commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_FTP_SERVER }}
+          username: ${{ secrets.PROD_FTP_USERNAME }}
+          password: ${{ secrets.PROD_FTP_PASSWORD }}
+          port: 22
+          use_insecure_cipher: true
+          script: |
+            cd ${{ env.REMOTE_PATH }} || exit 1
+
+            echo "Installing Composer..."
+            /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+            echo "Running migrations..."
+            php artisan migrate --force
+
+            echo "Caching..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            echo "Deployed successfully!"
