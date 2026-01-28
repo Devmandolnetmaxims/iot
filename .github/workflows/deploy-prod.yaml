@@ -65,7 +65,7 @@ jobs:
             cd $HOME/www/prod-api || exit 1
 
             echo "Installing Composer..."
-            composer82 install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            composer82 install
 
             echo "Running migrations..."
             php artisan migrate --force
