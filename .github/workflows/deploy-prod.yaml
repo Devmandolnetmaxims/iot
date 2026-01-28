@@ -65,7 +65,7 @@ jobs:
             cd ${{ env.REMOTE_PATH }} || exit 1
 
             echo "Installing Composer..."
-            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            composer82 install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
             echo "Running migrations..."
             php artisan migrate --force
