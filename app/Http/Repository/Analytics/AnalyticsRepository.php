@@ -74,6 +74,4 @@ class AnalyticsRepository {
             'logDetails' => $logDetails
         ], 200);
     }
-
-
 }

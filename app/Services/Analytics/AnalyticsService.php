@@ -195,86 +195,169 @@ class AnalyticsService
     //     }
     // }  //for external db
 
+    // public static function Load6hrawdata($request = null)
+    // {
+    //     Log::info('--- Load6hrawdata Sync Started ---');
+
+    //     // 1. Determine time window
+    //     $time = $request && isset($request->time) ? $request->time : null;
+    //     try {
+    //         $snapshotTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
+    //     } catch (\Exception $e) {
+    //         Log::error('Invalid time format provided', ['input' => $time]);
+    //         return false;
+    //     }
+
+    //     $snapshotHour = floor($snapshotTime->hour / 6) * 6;
+    //     $snapshotTime->setTime($snapshotHour, 0, 0);
+
+    //     $from = $snapshotTime->copy()->subHours(6);
+    //     $to   = $snapshotTime;
+
+    //     Log::info("Time Range: [{$from}] to [{$to}]");
+
+    //     try {
+    //         // 2. Check if data already exists
+    //         $exists = DB::table('device_logs_6h_staging')
+    //             ->where('time', '>=', $from)
+    //             ->where('time', '<', $to)
+    //             ->exists();
+
+    //         if ($exists) {
+    //             Log::info('Sync Skipped: Data already present for this time range.');
+    //             return true;
+    //         }
+
+    //         // 3. Clear staging table
+    //         DB::table('device_logs_6h_staging')->truncate();
+    //         Log::info('Staging table truncated.');
+
+    //         // 4. List of connections to pull from
+    //         $externalConnections = ['external_db', 'external_db2'];
+    //         $totalInserted = 0;
+    //         $now = now();
+
+    //         foreach ($externalConnections as $connection) {
+    //             Log::info("Fetching data from connection: {$connection}");
+
+    //             $rows = DB::connection($connection)->table('TestMuguhwa')
+    //                 ->where('TIME', '>=', $from)
+    //                 ->where('TIME', '<', $to)
+    //                 ->orderBy('TIME')
+    //                 ->limit(1000) // Changed to 1000 as per your request
+    //                 ->get();
+
+    //             $count = $rows->count();
+    //             Log::info("Found {$count} rows in {$connection}");
+
+    //             if ($count > 0) {
+    //                 $data = $rows->map(function ($row) use ($now) {
+    //                     $array = (array) $row;
+    //                     $array['created_at'] = $now;
+    //                     $array['updated_at'] = $now;
+    //                     return $array;
+    //                 })->toArray();
+
+    //                 DB::table('device_logs_6h_staging')->insert($data);
+    //                 $totalInserted += $count;
+    //                 Log::info("Successfully inserted {$count} rows from {$connection}");
+    //             }
+    //         }
+
+    //         Log::info("--- Load6hrawdata Completed. Total Rows: {$totalInserted} ---");
+    //         return true;
+
+    //     } catch (\Throwable $e) {
+    //         Log::error('Sync failed with error: ' . $e->getMessage(), [
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine()
+    //         ]);
+    //         return false;
+    //     }
+    // }
+
     public static function Load6hrawdata($request = null)
-    {
-        Log::info('--- Load6hrawdata Sync Started ---');
+{
+    Log::info('--- 3 Days Slot Processing Started ---');
 
-        // 1. Determine time window
-        $time = $request && isset($request->time) ? $request->time : null;
-        try {
-            $snapshotTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
-        } catch (\Exception $e) {
-            Log::error('Invalid time format provided', ['input' => $time]);
-            return false;
-        }
+    // Base time
+    $time = $request && isset($request->time)
+        ? $request->time
+        : now('Asia/Kolkata');
 
-        $snapshotHour = floor($snapshotTime->hour / 6) * 6;
-        $snapshotTime->setTime($snapshotHour, 0, 0);
+    try {
+        $endTime = Carbon::parse($time, 'Asia/Kolkata');
+    } catch (\Exception $e) {
+        Log::error('Invalid date');
+        return false;
+    }
 
-        $from = $snapshotTime->copy()->subHours(6);
-        $to   = $snapshotTime;
+    // Align to 6h boundary
+    $slotHour = floor($endTime->hour / 6) * 6;
+    $endTime->setTime($slotHour, 0, 0);
 
-        Log::info("Time Range: [{$from}] to [{$to}]");
+    // Start = 3 days ago
+    $startTime = $endTime->copy()->subDays(3);
 
-        try {
-            // 2. Check if data already exists
-            $exists = DB::table('device_logs_6h_staging')
-                ->where('time', '>=', $from)
-                ->where('time', '<', $to)
-                ->exists();
+    $connections = ['external_db', 'external_db2'];
 
-            if ($exists) {
-                Log::info('Sync Skipped: Data already present for this time range.');
-                return true;
-            }
+    // Loop: 12 slots
+    for ($i = 0; $i < 12; $i++) {
 
-            // 3. Clear staging table
-            DB::table('device_logs_6h_staging')->truncate();
-            Log::info('Staging table truncated.');
+        $from = $startTime->copy()->addHours($i * 6);
+        $to   = $from->copy()->addHours(6);
 
-            // 4. List of connections to pull from
-            $externalConnections = ['external_db', 'external_db2'];
-            $totalInserted = 0;
-            $now = now();
+        Log::info("Processing Slot: {$from} -> {$to}");
 
-            foreach ($externalConnections as $connection) {
-                Log::info("Fetching data from connection: {$connection}");
+        // 1️⃣ Clear staging
+        DB::table('device_logs_6h_staging')->truncate();
 
-                $rows = DB::connection($connection)->table('TestMuguhwa')
-                    ->where('TIME', '>=', $from)
-                    ->where('TIME', '<', $to)
+        // 2️⃣ Load ONE slot
+        foreach ($connections as $conn) {
+
+            $offset = 0;
+            $limit  = 1000;
+                $rows = DB::connection($conn)
+                    ->table('TestMuguhwa')
+                    ->whereBetween('TIME', [$from, $to])
                     ->orderBy('TIME')
-                    ->limit(1000) // Changed to 1000 as per your request
+                    ->offset($offset)
+                    ->limit($limit)
                     ->get();
 
-                $count = $rows->count();
-                Log::info("Found {$count} rows in {$connection}");
-
-                if ($count > 0) {
-                    $data = $rows->map(function ($row) use ($now) {
-                        $array = (array) $row;
-                        $array['created_at'] = $now;
-                        $array['updated_at'] = $now;
-                        return $array;
-                    })->toArray();
-
-                    DB::table('device_logs_6h_staging')->insert($data);
-                    $totalInserted += $count;
-                    Log::info("Successfully inserted {$count} rows from {$connection}");
+                if ($rows->isEmpty()) {
+                    break;
                 }
-            }
 
-            Log::info("--- Load6hrawdata Completed. Total Rows: {$totalInserted} ---");
-            return true;
+                $now = now();
 
-        } catch (\Throwable $e) {
-            Log::error('Sync failed with error: ' . $e->getMessage(), [
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            return false;
+                $data = $rows->map(function ($r) use ($now) {
+
+                    $arr = (array) $r;
+                    $arr['created_at'] = $now;
+                    $arr['updated_at'] = $now;
+
+                    return $arr;
+
+                })->toArray();
+
+                DB::table('device_logs_6h_staging')->insert($data);
         }
+
+        Log::info("Slot loaded. Running CalculatErrorState...");
+
+        // 3️⃣ Run your processing
+        self::CalculatErrorState();
+
+        Log::info("Slot completed.");
+
     }
+
+    Log::info('--- 3 Days Slot Processing Finished ---');
+
+    return true;
+}
+
 
     // Calculate error state
     public static function CalculatErrorState($request = null)
@@ -302,10 +385,6 @@ class AnalyticsService
         }
         if(self::UVFailLast1000()) {
             Log::info('UVFailLast1000 completed successfully');
-        }
-
-        if(self::UVCheckPersistent3Days($currentDate)) {
-            Log::info('UVCheckPersistent3Days completed successfully');
         }
 
         self::ResolveFinalState($currentDate);
@@ -618,6 +697,7 @@ class AnalyticsService
         ");
     }
 
+
     // private static function UVCheckPersistent3Days($currentDate)
     // {
     //     // 1. Define our time boundaries
@@ -650,31 +730,89 @@ class AnalyticsService
     //     }
     // }
 
-    private static function UVCheckPersistent3Days($currentDate)
-    {
-        $threeDaysAgo = Carbon::parse($currentDate)->subDays(2)->startOfDay()->toDateTimeString();
+    // public static function CheckPersistent3Days($request)
+    // {
+    //     $now = $request->date
+    //             ? Carbon::parse($request->date)
+    //             : Carbon::now();
 
+    //     // Round down to nearest 6-hour block
+    //     $slotHour = floor($now->hour / 6) * 6;
+
+    //     $windowStart = $now->copy()
+    //         ->startOfDay()
+    //         ->addHours($slotHour);
+
+    //     $currentDate = $windowStart->format('Y-m-d H:i:s');
+
+    //     $threeDaysAgo = Carbon::parse($currentDate)->subDays(3)->startOfDay()->toDateTimeString();
+
+
+    //     $failingDevices = DB::table('device_6h_analytics')
+    //         ->select('device')
+    //         ->where('clock_time', '>=', $threeDaysAgo)
+    //         ->where('clock_time', '<=', $currentDate)
+    //         ->where('network_missing', 1)
+    //         ->groupBy('device')
+    //         // Logic: Device must have missing records across 3 distinct calendar dates
+    //         ->havingRaw('COUNT(DISTINCT DATE(clock_time)) >= 3')
+    //         ->pluck('device');
+
+    //     if ($failingDevices->isNotEmpty()) {
+    //         DB::table('device_6h_analytics')
+    //             ->whereIn('device', $failingDevices)
+    //             /* STRICT LOCK: Only update the specific record you are processing */
+    //             ->where('clock_time', $currentDate)
+    //             ->update([
+    //                 'uv_persistent_fail' => 1,
+    //                 'final_color' => 'CYAN',
+    //                 'updated_at' => now()
+    //             ]);
+    //     }
+    // }
+
+    public static function CheckPersistent3Days($request)
+    {
+        $now = $request->date
+            ? Carbon::parse($request->date)
+            : Carbon::now();
+
+        // Current 6h window
+        $slotHour = floor($now->hour / 6) * 6;
+
+        $windowStart = $now->copy()
+            ->startOfDay()
+            ->addHours($slotHour);
+
+        $currentDate = $windowStart->toDateTimeString();
+
+        // Last 72 hours
+        $from = $windowStart->copy()
+            ->subHours(72)
+            ->toDateTimeString();
+
+        // Devices failing continuously
         $failingDevices = DB::table('device_6h_analytics')
             ->select('device')
-            ->where('clock_time', '>=', $threeDaysAgo)
-            ->where('clock_time', '<', $currentDate)
+            ->whereBetween('clock_time', [$from, $currentDate])
             ->where('network_missing', 1)
             ->groupBy('device')
-            // Logic: Device must have missing records across 3 distinct calendar dates
-            ->havingRaw('COUNT(DISTINCT DATE(clock_time)) >= 2')
+            ->havingRaw('COUNT(*) >= 12') // 12 windows = 3 days
             ->pluck('device');
 
         if ($failingDevices->isNotEmpty()) {
+
             DB::table('device_6h_analytics')
                 ->whereIn('device', $failingDevices)
-                /* STRICT LOCK: Only update the specific record you are processing */
-                ->where('snapshot_time', $currentDate)
+                ->where('clock_time', $currentDate)
                 ->update([
                     'uv_persistent_fail' => 1,
+                    'final_color' => 'CYAN',
                     'updated_at' => now()
                 ]);
         }
     }
+
 
     // private static function ResolveFinalState($currentDate)
     // {
@@ -730,10 +868,6 @@ class AnalyticsService
             UPDATE device_6h_analytics
             SET
                 final_color = CASE
-                    /* 💎 CYAN: Check this FIRST. If the 3-day check found a failure,
-                    it must override the standard BLUE status. */
-                    WHEN uv_persistent_fail = 1 THEN 'CYAN'
-
                     /* 🔵 BLUE: Standard network missing for this specific slot */
                     WHEN network_missing = 1 THEN 'BLUE'
 
@@ -751,7 +885,6 @@ class AnalyticsService
                 END,
 
                 decision_reason = CASE
-                    WHEN uv_persistent_fail = 1 THEN 'Critical : Device is failing for 3 days'
                     WHEN network_missing = 1 THEN 'No data in this 6h window'
                     WHEN tof_issue = 1 THEN 'TOF issue detected'
                     WHEN temp_issue = 1 THEN 'Temperature below threshold'
