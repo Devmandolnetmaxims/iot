@@ -3,7 +3,7 @@ name: Deploy Laravel App via SFTP
 on:
   push:
     branches:
-      - prod
+      - preprod
 
 jobs:
   deploy:
@@ -18,7 +18,7 @@ jobs:
       - name: Set remote path
         run: |
           case "${{ github.ref_name }}" in
-            prod)      echo "REMOTE_PATH=/www/prod-api/" >> $GITHUB_ENV ;;
+            preprod)      echo "REMOTE_PATH=/www/preprod-api/" >> $GITHUB_ENV ;;
             *)        echo "Invalid branch" && exit 1 ;;
           esac
 
@@ -62,7 +62,7 @@ jobs:
           port: 22
           use_insecure_cipher: true
           script: |
-            cd $HOME/www/prod-api || exit 1
+            cd $HOME/www/preprod-api || exit 1
 
             echo "Installing Composer..."
             composer82 install
