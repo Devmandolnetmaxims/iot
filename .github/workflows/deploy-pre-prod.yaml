@@ -62,7 +62,7 @@ jobs:
           port: 22
           use_insecure_cipher: true
           script: |
-            cd ${{ env.REMOTE_PATH }} || exit 1
+            cd $HOME/www/preprod-api || exit 1
 
             echo "Installing Composer..."
             composer82 install --no-dev --optimize-autoloader --no-interaction --prefer-dist
