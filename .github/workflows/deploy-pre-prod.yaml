@@ -18,7 +18,7 @@ jobs:
       - name: Set remote path
         run: |
           case "${{ github.ref_name }}" in
-            preprod)      echo "REMOTE_PATH=/www_root/preprod-api/" >> $GITHUB_ENV ;;
+            preprod)      echo "REMOTE_PATH=/www/preprod-api/" >> $GITHUB_ENV ;;
             *)        echo "Invalid branch" && exit 1 ;;
           esac
 

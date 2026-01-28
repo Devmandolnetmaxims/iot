@@ -20,6 +20,10 @@ class AnalyticsController extends Controller
         return AnalyticsService::CalculatErrorState();
     }
 
+    public function checkPersistent3Days(Request $request) {
+        return AnalyticsService::CheckPersistent3Days($request);
+    }
+
     // get device colors
     public function getDeviceColors(Request $request) {
         return AnalyticsRepository::getDeviceColors($request);
