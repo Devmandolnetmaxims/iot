@@ -48,7 +48,7 @@ jobs:
           server: ${{ secrets.PROD_FTP_SERVER }}
           username: ${{ secrets.PROD_FTP_USERNAME }}
           password: ${{ secrets.PROD_FTP_PASSWORD }}
-          port: 22
+          port: 3822
           local_path: './'
           remote_path: ${{ env.REMOTE_PATH }}
           sftp_only: true
