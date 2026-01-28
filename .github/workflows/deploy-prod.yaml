@@ -18,7 +18,7 @@ jobs:
       - name: Set remote path
         run: |
           case "${{ github.ref_name }}" in
-            prod)      echo "REMOTE_PATH=/www_root/prod-api/" >> $GITHUB_ENV ;;
+            prod)      echo "REMOTE_PATH=/www/prod-api/" >> $GITHUB_ENV ;;
             *)        echo "Invalid branch" && exit 1 ;;
           esac
 
@@ -65,7 +65,7 @@ jobs:
             cd ${{ env.REMOTE_PATH }} || exit 1
 
             echo "Installing Composer..."
-            /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            composer82 install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
             echo "Running migrations..."
             php artisan migrate --force

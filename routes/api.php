@@ -51,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/load6hrawdata', [AnalyticsController::class, 'load6hrawdata']);
         Route::get('/calculatErrorState', [AnalyticsController::class, 'calculatErrorState']);
         Route::get('/getDeviceColors', [AnalyticsController::class, 'getDeviceColors']);
+        Route::post('/checkPersistent3Days', [AnalyticsController::class, 'checkPersistent3Days']);
         // Route::get('/getDeviceColors', function (){
         //     dd("testingg....");
         // });
