@@ -298,6 +298,82 @@ class AnalyticsService
     //     $slotHour = floor($endTime->hour / 6) * 6;
     //     $endTime->setTime($slotHour, 0, 0);
 
+    //     // Align to 6h boundary
+    //     $slotHour = floor($endTime->hour / 6) * 6;
+    //     $endTime->setTime($slotHour, 0, 0);
+
+    //     // Loop: 12 slots
+    //     for ($i = 0; $i < 12; $i++) {
+
+    //         $from = $startTime->copy()->addHours($i * 6);
+    //         $to   = $from->copy()->addHours(6);
+
+    //         Log::info("Processing Slot: {$from} -> {$to}");
+
+    //         // 1️⃣ Clear staging
+    //         DB::table('device_logs_6h_staging')->truncate();
+
+    //         // 2️⃣ Load ONE slot
+    //         foreach ($connections as $conn) {
+
+    //             $offset = 0;
+    //             $limit  = 1000;
+    //                 $rows = DB::connection($conn)
+    //                     ->table('TestMuguhwa')
+    //                     ->whereBetween('TIME', [$from, $to])
+    //                     ->orderBy('TIME')
+    //                     ->offset($offset)
+    //                     ->limit($limit)
+    //                     ->get();
+
+    //                 if ($rows->isEmpty()) {
+    //                     break;
+    //                 }
+
+    //                 $now = now();
+
+    //                 $data = $rows->map(function ($r) use ($now) {
+
+    //                     $arr = (array) $r;
+    //                     $arr['created_at'] = $now;
+    //                     $arr['updated_at'] = $now;
+
+    //                     return $arr;
+
+    //                 })->toArray();
+
+    //                 DB::table('device_logs_6h_staging')->insert($data);
+    //         }
+
+    //         Log::info("Slot loaded. Running CalculatErrorState...");
+
+    //         // 3️⃣ Run your processing
+    //         self::CalculatErrorState();
+
+    //         Log::info("Slot completed.");
+
+    //     }
+
+    // public static function Load6hrawdata($request = null)
+    // {
+    //     Log::info('--- 3 Days Slot Processing Started ---');
+
+    //     // Base time
+    //     $time = $request && isset($request->time)
+    //         ? $request->time
+    //         : now('Asia/Kolkata');
+
+    //     try {
+    //         $endTime = Carbon::parse($time, 'Asia/Kolkata');
+    //     } catch (\Exception $e) {
+    //         Log::error('Invalid date');
+    //         return false;
+    //     }
+
+    //     // Align to 6h boundary
+    //     $slotHour = floor($endTime->hour / 6) * 6;
+    //     $endTime->setTime($slotHour, 0, 0);
+
     //     // Start = 3 days ago
     //     $startTime = $endTime->copy()->subDays(3);
 
