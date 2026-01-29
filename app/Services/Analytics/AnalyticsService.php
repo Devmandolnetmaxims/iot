@@ -212,8 +212,9 @@ class AnalyticsService
         $snapshotHour = floor($snapshotTime->hour / 6) * 6;
         $snapshotTime->setTime($snapshotHour, 0, 0);
 
-        $from = $snapshotTime->copy()->subHours(6);
-        $to   = $snapshotTime;
+    // Align to 6h boundary
+    $slotHour = floor($endTime->hour / 6) * 6;
+    $endTime->setTime($slotHour, 0, 0);
 
         Log::info("Time Range: [{$from}] to [{$to}]");
 
@@ -451,6 +452,12 @@ class AnalyticsService
             return $e->getMessage();
         }
     }
+
+    Log::info('--- 3 Days Slot Processing Finished ---');
+
+    return true;
+}
+
 
     // Calculate error state
     public static function CalculatErrorState($request = null)
