@@ -52,10 +52,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/calculatErrorState', [AnalyticsController::class, 'calculatErrorState']);
         Route::get('/getDeviceColors', [AnalyticsController::class, 'getDeviceColors']);
         Route::post('/checkPersistent3Days', [AnalyticsController::class, 'checkPersistent3Days']);
-        Route::get('/load1hrawdata', [AnalyticsController::class, 'runPostAnalyticsTask']);
     });
 });
 
+
+// Public apis:-
+Route::get('/load1hrawdata', [AnalyticsController::class, 'runPostAnalyticsTask']);
 
 // Default authenticated route
 Route::get('/user', function (Request $request) {

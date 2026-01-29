@@ -10,94 +10,94 @@ use Carbon\Carbon;
 class AnalyticsService
 {
     // Load 6 hourse raw data in temp table
-    // public static function Load6hrawdata($request = null)
-    // {
-    //     Log::info('Load6hrawdata started');
+    public static function Load6hrawdata($request = null)
+    {
+        Log::info('Load6hrawdata started');
 
-    //     // Safely extract time
-    //     if ($request->time) {
-    //         $time = $request->time;
-    //         Log::info('Time received from request', ['time' => $time]);
-    //     } else {
-    //         $time = null;
-    //         Log::info('No time provided, using current time');
-    //     }
+        // Safely extract time
+        if ($request->time) {
+            $time = $request->time;
+            Log::info('Time received from request', ['time' => $time]);
+        } else {
+            $time = null;
+            Log::info('No time provided, using current time');
+        }
 
-    //     // 1 Determine snapshot time
-    //     $snapshotTime = $time
-    //         ? Carbon::parse($time, 'Asia/Kolkata')
-    //         : Carbon::now('Asia/Kolkata');
+        // 1 Determine snapshot time
+        $snapshotTime = $time
+            ? Carbon::parse($time, 'Asia/Kolkata')
+            : Carbon::now('Asia/Kolkata');
 
-    //     Log::info('Snapshot time determined', [
-    //         'snapshot_time' => $snapshotTime->toDateTimeString(),
-    //     ]);
+        Log::info('Snapshot time determined', [
+            'snapshot_time' => $snapshotTime->toDateTimeString(),
+        ]);
 
-    //     // Align to 6-hour boundary
-    //     $snapshotHour = floor($snapshotTime->hour / 6) * 6;
+        // Align to 6-hour boundary
+        $snapshotHour = floor($snapshotTime->hour / 6) * 6;
 
-    //     $snapshotTime
-    //         ->setHour($snapshotHour)
-    //         ->setMinute(0)
-    //         ->setSecond(0);
+        $snapshotTime
+            ->setHour($snapshotHour)
+            ->setMinute(0)
+            ->setSecond(0);
 
-    //     $from = $snapshotTime->copy()->subHours(6);
-    //     $to   = $snapshotTime;
+        $from = $snapshotTime->copy()->subHours(6);
+        $to   = $snapshotTime;
 
-    //     Log::info('6-hour window calculated', [
-    //         'from' => $from->toDateTimeString(),
-    //         'to'   => $to->toDateTimeString(),
-    //     ]);
+        Log::info('6-hour window calculated', [
+            'from' => $from->toDateTimeString(),
+            'to'   => $to->toDateTimeString(),
+        ]);
 
-    //     try {
-    //         // 2 Check if data already exists
-    //         $exists = DB::table('device_logs_6h_staging')
-    //             ->where('time', '>=', $from)
-    //             ->where('time', '<', $to)
-    //             ->exists();
+        try {
+            // 2 Check if data already exists
+            $exists = DB::table('device_logs_6h_staging')
+                ->where('time', '>=', $from)
+                ->where('time', '<', $to)
+                ->exists();
 
-    //         if ($exists) {
-    //             Log::info('Skipping load '.$from.' – '.$to.' data already present');
-    //             return true;
-    //         }
+            if ($exists) {
+                Log::info('Skipping load '.$from.' – '.$to.' data already present');
+                return true;
+            }
 
-    //         // 3 Clear staging table
-    //         DB::statement('TRUNCATE TABLE device_logs_6h_staging');
-    //         Log::info('Staging table truncated');
+            // 3 Clear staging table
+            DB::statement('TRUNCATE TABLE device_logs_6h_staging');
+            Log::info('Staging table truncated');
 
-    //         // 4 Insert last 6 hours data
-    //         DB::statement("
-    //             INSERT INTO device_logs_6h_staging
-    //             (
-    //                 device, time, begin, last, event,
-    //                 active, pir, tof, uv, mm, temp,
-    //                 created_at, updated_at
-    //             )
-    //             SELECT
-    //                 device, time, begin, last, event,
-    //                 active, pir, tof, uv, mm, temp,
-    //                 NOW(), NOW()
-    //             FROM TestMuguhwa
-    //             WHERE time >= ? AND time < ?
-    //         ", [$from, $to]);
+            // 4 Insert last 6 hours data
+            DB::statement("
+                INSERT INTO device_logs_6h_staging
+                (
+                    device, time, begin, last, event,
+                    active, pir, tof, uv, mm, temp,
+                    created_at, updated_at
+                )
+                SELECT
+                    device, time, begin, last, event,
+                    active, pir, tof, uv, mm, temp,
+                    NOW(), NOW()
+                FROM TestMuguhwa
+                WHERE time >= ? AND time < ?
+            ", [$from, $to]);
 
-    //         $count = DB::table('device_logs_6h_staging')->count();
+            $count = DB::table('device_logs_6h_staging')->count();
 
-    //         Log::info('Load6hrawdata completed successfully', [
-    //             'rows_inserted' => $count,
-    //         ]);
+            Log::info('Load6hrawdata completed successfully', [
+                'rows_inserted' => $count,
+            ]);
 
-    //         // AnalyticsService::CalculatErrorState();
-    //         return true;
+            AnalyticsService::CalculatErrorState();
+            return true;
 
-    //     } catch (\Throwable $e) {
-    //         Log::error('Load6hrawdata failed', [
-    //             'message' => $e->getMessage(),
-    //             'trace'   => $e->getTraceAsString(),
-    //         ]);
+        } catch (\Throwable $e) {
+            Log::error('Load6hrawdata failed', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
 
-    //         return false;
-    //     }
-    // }  // working
+            return false;
+        }
+    }  // it working
 
     // public static function Load6hrawdata($request = null)
     // {
@@ -355,6 +355,83 @@ class AnalyticsService
 
     //     }
 
+    // public static function Load6hrawdata($request = null)
+    // {
+    //     Log::info('--- 3 Days Slot Processing Started ---');
+
+    //     // Base time
+    //     $time = $request && isset($request->time)
+    //         ? $request->time
+    //         : now('Asia/Kolkata');
+
+    //     try {
+    //         $endTime = Carbon::parse($time, 'Asia/Kolkata');
+    //     } catch (\Exception $e) {
+    //         Log::error('Invalid date');
+    //         return false;
+    //     }
+
+    //     // Align to 6h boundary
+    //     $slotHour = floor($endTime->hour / 6) * 6;
+    //     $endTime->setTime($slotHour, 0, 0);
+
+    //     // Start = 3 days ago
+    //     $startTime = $endTime->copy()->subDays(3);
+
+    //     $connections = ['external_db', 'external_db2'];
+
+    //     // Loop: 12 slots
+    //     for ($i = 0; $i < 12; $i++) {
+
+    //         $from = $startTime->copy()->addHours($i * 6);
+    //         $to   = $from->copy()->addHours(6);
+
+    //         Log::info("Processing Slot: {$from} -> {$to}");
+
+    //         // 1️⃣ Clear staging
+    //         DB::table('device_logs_6h_staging')->truncate();
+
+    //         // 2️⃣ Load ONE slot
+    //         foreach ($connections as $conn) {
+
+    //             $offset = 0;
+    //             $limit  = 1000;
+    //                 $rows = DB::connection($conn)
+    //                     ->table('TestMuguhwa')
+    //                     ->whereBetween('TIME', [$from, $to])
+    //                     ->orderBy('TIME')
+    //                     ->offset($offset)
+    //                     ->limit($limit)
+    //                     ->get();
+
+    //                 if ($rows->isEmpty()) {
+    //                     break;
+    //                 }
+
+    //                 $now = now();
+
+    //                 $data = $rows->map(function ($r) use ($now) {
+
+    //                     $arr = (array) $r;
+    //                     $arr['created_at'] = $now;
+    //                     $arr['updated_at'] = $now;
+
+    //                     return $arr;
+
+    //                 })->toArray();
+
+    //                 DB::table('device_logs_6h_staging')->insert($data);
+    //         }
+
+    //         Log::info("Slot loaded. Running CalculatErrorState...");
+
+    //         // 3️⃣ Run your processing
+    //         self::CalculatErrorState();
+
+    //         Log::info("Slot completed.");
+
+    //     }
+
     //     Log::info('--- 3 Days Slot Processing Finished ---');
 
     //     return true;
@@ -371,8 +448,8 @@ class AnalyticsService
             return false;
         }
 
-        $carbonTo = $nowTime->copy()->startOfHour();
-        $carbonFrom = $carbonTo->copy()->subHour();
+        $carbonFrom = $nowTime->copy()->startOfHour(); // 13:00:00
+        $carbonTo   = $carbonFrom->copy()->addHour();    // 14:00:00
 
         $toString = $carbonTo->format('Y-m-d H:i:s');
         $fromStr = $carbonFrom->format('Y-m-d H:i:s');
@@ -452,12 +529,6 @@ class AnalyticsService
             return $e->getMessage();
         }
     }
-
-    Log::info('--- 3 Days Slot Processing Finished ---');
-
-    return true;
-}
-
 
     // Calculate error state
     public static function CalculatErrorState($request = null)
