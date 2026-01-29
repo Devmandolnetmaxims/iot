@@ -16,6 +16,10 @@ class AnalyticsController extends Controller
         return AnalyticsService::Load6hrawdata($request);
     }
 
+    public function runPostAnalyticsTask() {
+        return AnalyticsService::RunLoadHourlyDataWithLog();
+    }
+
     public function calculatErrorState() {
         return AnalyticsService::CalculatErrorState();
     }
