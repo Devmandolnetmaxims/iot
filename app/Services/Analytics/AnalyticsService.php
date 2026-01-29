@@ -97,7 +97,7 @@ class AnalyticsService
 
             return false;
         }
-    }  // working
+    }  // it working
 
     // public static function Load6hrawdata($request = null)
     // {
