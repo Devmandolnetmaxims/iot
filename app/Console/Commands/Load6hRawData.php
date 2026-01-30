@@ -32,8 +32,8 @@ class Load6hRawData extends Command
 
         if(AnalyticsService::Load6hrawdata($request)) {
             $this->info('Raw data loaded.');
-            RunPostAnalyticsTask::dispatch()
-            ->delay(now()->addSeconds(60));
+            // RunPostAnalyticsTask::dispatch()
+            // ->delay(now()->addSeconds(60));
         } else {
             $this->error('Raw data not loaded.');
         }

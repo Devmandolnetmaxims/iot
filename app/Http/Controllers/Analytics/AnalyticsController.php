@@ -16,6 +16,9 @@ class AnalyticsController extends Controller
         return AnalyticsService::Load6hrawdata($request);
     }
 
+    public function run6hrawdata(Request $request) {
+        return AnalyticsService::Run6hrawdata($request);
+    }
     public function runPostAnalyticsTask(Request $request) {
         return AnalyticsService::RunLoadHourlyDataWithLog($request);
     }
@@ -31,5 +34,10 @@ class AnalyticsController extends Controller
     // get device colors
     public function getDeviceColors(Request $request) {
         return AnalyticsRepository::getDeviceColors($request);
+    }
+
+    // Delete old data
+    public function deleteOldData() {
+        return AnalyticsService::deleteOldData();
     }
 }
