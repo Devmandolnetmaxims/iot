@@ -23,6 +23,7 @@ class AnalyticsRepository {
         }
 
         $dateTime = $request->query('date') . ' ' . $request->query('time');
+        $dateTime = Carbon::parse($dateTime)->subHours(6);
 
         // Check if data exists
         $exists = DB::table('device_6h_analytics as a')
