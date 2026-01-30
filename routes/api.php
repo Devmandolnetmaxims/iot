@@ -58,6 +58,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Public apis:-
 Route::get('/load1hrawdata', [AnalyticsController::class, 'runPostAnalyticsTask']);
+Route::get('/run6hrawdata', [AnalyticsController::class, 'run6hrawdata']);
+Route::get('/deleteOldData', [AnalyticsController::class, 'deleteOldData']);
 
 // Default authenticated route
 Route::get('/user', function (Request $request) {
