@@ -87,6 +87,9 @@ class AnalyticsService
             ]);
 
             AnalyticsService::CalculatErrorState();
+
+            $request->time = $from;
+            AnalyticsService::CheckPersistent3Days($request);
             return true;
 
         } catch (\Throwable $e) {
@@ -121,166 +124,6 @@ class AnalyticsService
             return $e->getMessage();
         }
     }
-
-    // public static function Load6hrawdata($request = null)
-    // {
-    //     Log::info('--- 3 Days Slot Processing Started ---');
-
-    //     // Base time
-    //     $time = $request && isset($request->time)
-    //         ? $request->time
-    //         : now('Asia/Seoul');
-
-    //     try {
-    //         $endTime = Carbon::parse($time, 'Asia/Seoul');
-    //     } catch (\Exception $e) {
-    //         Log::error('Invalid date');
-    //         return false;
-    //     }
-
-    //     // Align to 6h boundary
-    //     $slotHour = floor($endTime->hour / 6) * 6;
-    //     $endTime->setTime($slotHour, 0, 0);
-
-    //     // Start = 3 days ago
-    //     $startTime = $endTime->copy()->subDays(3);
-
-    //     $connections = ['external_db', 'external_db2'];
-
-    //     // Loop: 12 slots
-    //     for ($i = 0; $i < 12; $i++) {
-
-    //         $from = $startTime->copy()->addHours($i * 6);
-    //         $to   = $from->copy()->addHours(6);
-
-    //         Log::info("Processing Slot: {$from} -> {$to}");
-
-    //         // 1️⃣ Clear staging
-    //         DB::table('device_logs_6h_staging')->truncate();
-
-    //         // 2️⃣ Load ONE slot
-    //         foreach ($connections as $conn) {
-
-    //             $offset = 0;
-    //             $limit  = 1000;
-    //                 $rows = DB::connection($conn)
-    //                     ->table('TestMuguhwa')
-    //                     ->whereBetween('TIME', [$from, $to])
-    //                     ->orderBy('TIME')
-    //                     ->offset($offset)
-    //                     ->limit($limit)
-    //                     ->get();
-
-    //                 if ($rows->isEmpty()) {
-    //                     break;
-    //                 }
-
-    //                 $now = now();
-
-    //                 $data = $rows->map(function ($r) use ($now) {
-
-    //                     $arr = (array) $r;
-    //                     $arr['created_at'] = $now;
-    //                     $arr['updated_at'] = $now;
-
-    //                     return $arr;
-
-    //                 })->toArray();
-
-    //                 DB::table('device_logs_6h_staging')->insert($data);
-    //         }
-
-    //         Log::info("Slot loaded. Running CalculatErrorState...");
-
-    //         // 3️⃣ Run your processing
-    //         self::CalculatErrorState();
-
-    //         Log::info("Slot completed.");
-
-    //     }
-
-    // public static function Load6hrawdata($request = null)
-    // {
-    //     Log::info('--- 3 Days Slot Processing Started ---');
-
-    //     // Base time
-    //     $time = $request && isset($request->time)
-    //         ? $request->time
-    //         : now('Asia/Seoul');
-
-    //     try {
-    //         $endTime = Carbon::parse($time, 'Asia/Seoul');
-    //     } catch (\Exception $e) {
-    //         Log::error('Invalid date');
-    //         return false;
-    //     }
-
-    //     // Align to 6h boundary
-    //     $slotHour = floor($endTime->hour / 6) * 6;
-    //     $endTime->setTime($slotHour, 0, 0);
-
-    //     // Start = 3 days ago
-    //     $startTime = $endTime->copy()->subDays(3);
-
-    //     $connections = ['external_db', 'external_db2'];
-
-    //     // Loop: 12 slots
-    //     for ($i = 0; $i < 12; $i++) {
-
-    //         $from = $startTime->copy()->addHours($i * 6);
-    //         $to   = $from->copy()->addHours(6);
-
-    //         Log::info("Processing Slot: {$from} -> {$to}");
-
-    //         // 1️⃣ Clear staging
-    //         DB::table('device_logs_6h_staging')->truncate();
-
-    //         // 2️⃣ Load ONE slot
-    //         foreach ($connections as $conn) {
-
-    //             $offset = 0;
-    //             $limit  = 1000;
-    //                 $rows = DB::connection($conn)
-    //                     ->table('TestMuguhwa')
-    //                     ->whereBetween('TIME', [$from, $to])
-    //                     ->orderBy('TIME')
-    //                     ->offset($offset)
-    //                     ->limit($limit)
-    //                     ->get();
-
-    //                 if ($rows->isEmpty()) {
-    //                     break;
-    //                 }
-
-    //                 $now = now();
-
-    //                 $data = $rows->map(function ($r) use ($now) {
-
-    //                     $arr = (array) $r;
-    //                     $arr['created_at'] = $now;
-    //                     $arr['updated_at'] = $now;
-
-    //                     return $arr;
-
-    //                 })->toArray();
-
-    //                 DB::table('device_logs_6h_staging')->insert($data);
-    //         }
-
-    //         Log::info("Slot loaded. Running CalculatErrorState...");
-
-    //         // 3️⃣ Run your processing
-    //         self::CalculatErrorState();
-
-    //         Log::info("Slot completed.");
-
-    //     }
-
-    //     Log::info('--- 3 Days Slot Processing Finished ---');
-
-    //     return true;
-    // } get 3 day data
-
 
     public static function Load1hrawdata($request = null)
     {
@@ -580,7 +423,6 @@ class AnalyticsService
         ");
     }
 
-
     // Check temp issue
     private static function TempIssue() {
         DB::statement("
@@ -717,31 +559,40 @@ class AnalyticsService
         ");
     }
 
-
-    // private static function UVCheckPersistent3Days($currentDate)
+    // public static function CheckPersistent3Days($request)
     // {
-    //     // 1. Define our time boundaries
-    //     $threeDaysAgoStart = Carbon::today()->subDays(3)->toDateTimeString(); // Start of 3 days ago
-    //     // $todayStart = Carbon::today()->toDateTimeString();                   // Start of today
-    //     $todayStart = $currentDate;                   // Start of today
-    //     // dd($todayStart, $threeDaysAgoStart);
-    //     // 2. Identify devices that had network_missing = 1 consistently over the last 3 days
-    //     // We use a subquery to find these specific device IDs
+    //     $now = $request->date
+    //         ? Carbon::parse($request->date)
+    //         : Carbon::now();
+
+    //     // Current 6h window
+    //     $slotHour = floor($now->hour / 6) * 6;
+
+    //     $windowStart = $now->copy()
+    //         ->startOfDay()
+    //         ->addHours($slotHour);
+
+    //     $currentDate = $windowStart->toDateTimeString();
+
+    //     // Last 72 hours
+    //     $from = $windowStart->copy()
+    //         ->subHours(72)
+    //         ->toDateTimeString();
+
+    //     // Devices failing continuously
     //     $failingDevices = DB::table('device_6h_analytics')
     //         ->select('device')
-    //         ->where('clock_time', '>=', $threeDaysAgoStart)
-    //         ->where('clock_time', '<', $todayStart)
+    //         ->whereBetween('clock_time', [$from, $currentDate])
     //         ->where('network_missing', 1)
     //         ->groupBy('device')
-    //         // Ensures the failure exists across 3 distinct dates
-    //         ->havingRaw('COUNT(DISTINCT DATE(clock_time)) >= 3')
+    //         ->havingRaw('COUNT(*) >= 12') // 12 windows = 3 days
     //         ->pluck('device');
 
-    //     // 3. If any devices match, update their records for "today"
     //     if ($failingDevices->isNotEmpty()) {
+
     //         DB::table('device_6h_analytics')
     //             ->whereIn('device', $failingDevices)
-    //             ->where('created_at', '>=', $todayStart)
+    //             ->where('clock_time', $currentDate)
     //             ->update([
     //                 'uv_persistent_fail' => 1,
     //                 'final_color' => 'CYAN',
@@ -752,133 +603,91 @@ class AnalyticsService
 
     // public static function CheckPersistent3Days($request)
     // {
-    //     $now = $request->date
-    //             ? Carbon::parse($request->date)
-    //             : Carbon::now();
-
-    //     // Round down to nearest 6-hour block
+    //     // 1. Determine the current slot time (e.g., 2026-01-30 00:00:00)
+    //     $now = $request->time ? Carbon::parse($request->time) : Carbon::now();
     //     $slotHour = floor($now->hour / 6) * 6;
 
-    //     $windowStart = $now->copy()
-    //         ->startOfDay()
-    //         ->addHours($slotHour);
+    //     $currentSlot = $now->copy()->startOfDay()->addHours($slotHour);
+    //     $currentDateStr = $currentSlot->toDateTimeString();
 
-    //     $currentDate = $windowStart->format('Y-m-d H:i:s');
+    //     // 2. Build an array of the 4 exact timestamps (Today, -1d, -2d, -3d)
+    //     // This ignores 06:00, 12:00, 18:00 etc.
+    //     $targetTimestamps = [
+    //         $currentDateStr,
+    //         $currentSlot->copy()->subDays(1)->toDateTimeString(),
+    //         $currentSlot->copy()->subDays(2)->toDateTimeString(),
+    //         // $currentSlot->copy()->subDays(3)->toDateTimeString(),
+    //     ];
 
-    //     $threeDaysAgo = Carbon::parse($currentDate)->subDays(3)->startOfDay()->toDateTimeString();
-
-
+    //     // 3. Find devices that failed at ALL 4 of these exact times
     //     $failingDevices = DB::table('device_6h_analytics')
     //         ->select('device')
-    //         ->where('clock_time', '>=', $threeDaysAgo)
-    //         ->where('clock_time', '<=', $currentDate)
+    //         ->whereIn('clock_time', $targetTimestamps) // Only look at these 4 exact moments
     //         ->where('network_missing', 1)
     //         ->groupBy('device')
-    //         // Logic: Device must have missing records across 3 distinct calendar dates
-    //         ->havingRaw('COUNT(DISTINCT DATE(clock_time)) >= 3')
+    //         ->havingRaw('COUNT(*) = 4') // Must have failed at all 4 timestamps
     //         ->pluck('device');
 
+    //     // 4. Update the current slot record for those specific devices
     //     if ($failingDevices->isNotEmpty()) {
     //         DB::table('device_6h_analytics')
     //             ->whereIn('device', $failingDevices)
-    //             /* STRICT LOCK: Only update the specific record you are processing */
-    //             ->where('clock_time', $currentDate)
+    //             ->where('clock_time', $currentDateStr)
     //             ->update([
     //                 'uv_persistent_fail' => 1,
     //                 'final_color' => 'CYAN',
     //                 'updated_at' => now()
     //             ]);
     //     }
+
+    //     return $failingDevices;
     // }
 
     public static function CheckPersistent3Days($request)
-    {
-        $now = $request->date
-            ? Carbon::parse($request->date)
-            : Carbon::now();
+{
+    $now = $request->time ? Carbon::parse($request->time) : Carbon::now();
+    $slotHour = floor($now->hour / 6) * 6;
+    $currentSlot = $now->copy()->startOfDay()->addHours($slotHour);
+    $currentDateStr = $currentSlot->toDateTimeString();
 
-        // Current 6h window
-        $slotHour = floor($now->hour / 6) * 6;
+    $targetTimestamps = [
+        $currentDateStr,
+        $currentSlot->copy()->subDays(1)->toDateTimeString(),
+        $currentSlot->copy()->subDays(2)->toDateTimeString(),
+    ];
 
-        $windowStart = $now->copy()
-            ->startOfDay()
-            ->addHours($slotHour);
-
-        $currentDate = $windowStart->toDateTimeString();
-
-        // Last 72 hours
-        $from = $windowStart->copy()
-            ->subHours(72)
-            ->toDateTimeString();
-
-        // Devices failing continuously
-        $failingDevices = DB::table('device_6h_analytics')
-            ->select('device')
-            ->whereBetween('clock_time', [$from, $currentDate])
-            ->where('network_missing', 1)
-            ->groupBy('device')
-            ->havingRaw('COUNT(*) >= 12') // 12 windows = 3 days
-            ->pluck('device');
-
-        if ($failingDevices->isNotEmpty()) {
-
-            DB::table('device_6h_analytics')
-                ->whereIn('device', $failingDevices)
-                ->where('clock_time', $currentDate)
-                ->update([
-                    'uv_persistent_fail' => 1,
-                    'final_color' => 'CYAN',
-                    'updated_at' => now()
-                ]);
+    // LOG: Check if these records actually exist in the DB at all
+    foreach($targetTimestamps as $ts) {
+        $exists = DB::table('device_6h_analytics')->where('clock_time', $ts)->exists();
+        if (!$exists) {
+            Log::warning("Data Missing: No records found for timestamp {$ts}. Persistent check will likely fail.");
         }
     }
 
+    $failingDevices = DB::table('device_6h_analytics')
+        ->select('device')
+        ->whereIn('clock_time', $targetTimestamps)
+        ->where('network_missing', 1)
+        ->groupBy('device')
+        ->havingRaw('COUNT(*) = 3')
+        ->pluck('device');
 
-    // private static function ResolveFinalState($currentDate)
-    // {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics
-    //         SET
-    //             final_color = CASE
-    //                 -- 💎 Cyan: 3-Day Persistent UV Failure (High Priority)
-    //                 WHEN uv_persistent_fail = 1 THEN 'CYAN'
+    if ($failingDevices->isNotEmpty()) {
+        DB::table('device_6h_analytics')
+            ->whereIn('device', $failingDevices)
+            ->where('clock_time', $currentDateStr)
+            ->update([
+                'uv_persistent_fail' => 1,
+                'final_color' => 'CYAN',
+                'updated_at' => now()
+            ]);
 
-    //                 -- 🔵 Network issue
-    //                 WHEN network_missing = 1 THEN 'BLUE'
+        Log::info("Success: Updated " . $failingDevices->count() . " devices to CYAN for the 9th.");
+    }
 
-    //                 -- 🟡 TOF issue (locks state)
-    //                 WHEN tof_issue = 1 THEN 'YELLOW'
+    return $failingDevices;
+}
 
-    //                 -- 🟠 Temperature issue
-    //                 WHEN temp_issue = 1 THEN 'ORANGE'
-
-    //                 -- 🟢 UV OK if ANY window passes
-    //                 WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0 THEN 'GREEN'
-
-    //                 -- 🩷 UV completely OFF
-    //                 ELSE 'MAGENTA'
-    //             END,
-
-    //             decision_reason = CASE
-    //                 WHEN network_missing = 1
-    //                     THEN 'No data in this 6h window'
-
-    //                 WHEN uv_persistent_fail = 1
-    //                     THEN 'Critical : Device is faling for 3 days'
-
-    //                 WHEN tof_issue = 1
-    //                     THEN 'TOF issue detected'
-
-    //                 WHEN temp_issue = 1
-    //                     THEN 'Temperature below threshold'
-
-    //                 WHEN (uv_pass_30 + uv_pass_200 + uv_pass_1000) > 0
-    //                     THEN 'UV ON detected in recent history'
-
-    //                 ELSE 'UV OFF in 30/200/1000 records'
-    //             END
-    //     ");
-    // }
     private static function ResolveFinalState($currentDate)
     {
         // Ensure the date is in the correct string format for the SQL query
