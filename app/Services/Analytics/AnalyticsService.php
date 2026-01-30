@@ -25,8 +25,8 @@ class AnalyticsService
 
         // 1 Determine snapshot time
         $snapshotTime = $time
-            ? Carbon::parse($time, 'Asia/Kolkata')
-            : Carbon::now('Asia/Kolkata');
+            ? Carbon::parse($time, 'Asia/Seoul')
+            : Carbon::now('Asia/Seoul');
 
         Log::info('Snapshot time determined', [
             'snapshot_time' => $snapshotTime->toDateTimeString(),
@@ -113,7 +113,7 @@ class AnalyticsService
     //     }
     //     // 1. Determine time window (Keep your existing logic)
     //     $time = $request && isset($request->time) ? $request->time : null;
-    //     $snapshotTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
+    //     $snapshotTime = $time ? Carbon::parse($time, 'Asia/Seoul') : Carbon::now('Asia/Seoul');
     //     $snapshotHour = floor($snapshotTime->hour / 6) * 6;
     //     $snapshotTime->setTime($snapshotHour, 0, 0);
 
@@ -203,7 +203,7 @@ class AnalyticsService
     //     // 1. Determine time window
     //     $time = $request && isset($request->time) ? $request->time : null;
     //     try {
-    //         $snapshotTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
+    //         $snapshotTime = $time ? Carbon::parse($time, 'Asia/Seoul') : Carbon::now('Asia/Seoul');
     //     } catch (\Exception $e) {
     //         Log::error('Invalid time format provided', ['input' => $time]);
     //         return false;
@@ -285,10 +285,10 @@ class AnalyticsService
     //     // Base time
     //     $time = $request && isset($request->time)
     //         ? $request->time
-    //         : now('Asia/Kolkata');
+    //         : now('Asia/Seoul');
 
     //     try {
-    //         $endTime = Carbon::parse($time, 'Asia/Kolkata');
+    //         $endTime = Carbon::parse($time, 'Asia/Seoul');
     //     } catch (\Exception $e) {
     //         Log::error('Invalid date');
     //         return false;
@@ -361,10 +361,10 @@ class AnalyticsService
     //     // Base time
     //     $time = $request && isset($request->time)
     //         ? $request->time
-    //         : now('Asia/Kolkata');
+    //         : now('Asia/Seoul');
 
     //     try {
-    //         $endTime = Carbon::parse($time, 'Asia/Kolkata');
+    //         $endTime = Carbon::parse($time, 'Asia/Seoul');
     //     } catch (\Exception $e) {
     //         Log::error('Invalid date');
     //         return false;
@@ -438,10 +438,10 @@ class AnalyticsService
     //     // Base time
     //     $time = $request && isset($request->time)
     //         ? $request->time
-    //         : now('Asia/Kolkata');
+    //         : now('Asia/Seoul');
 
     //     try {
-    //         $endTime = Carbon::parse($time, 'Asia/Kolkata');
+    //         $endTime = Carbon::parse($time, 'Asia/Seoul');
     //     } catch (\Exception $e) {
     //         Log::error('Invalid date');
     //         return false;
@@ -518,7 +518,7 @@ class AnalyticsService
     {
         $time = $request && isset($request->time) ? $request->time : null;
         try {
-            $nowTime = $time ? Carbon::parse($time, 'Asia/Kolkata') : Carbon::now('Asia/Kolkata');
+            $nowTime = $time ? Carbon::parse($time, 'Asia/Seoul') : Carbon::now('Asia/Seoul');
         } catch (\Exception $e) {
             Log::error('Invalid time format', ['input' => $time]);
             return false;
