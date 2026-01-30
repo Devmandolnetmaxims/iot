@@ -561,7 +561,7 @@ class AnalyticsService
             $command = sprintf(
                 "mysqldump -h %s -u %s -p'%s' --no-tablespaces %s TestMuguhwa " .
                 "--where=\"TIME >= '%s' AND TIME < '%s'\" " .
-                "--no-create-info --single-transaction --quick --skip-extended-insert --compact --set-gtid-purged=OFF " .
+                "--no-create-info --single-transaction --quick --skip-extended-insert --compact" .
                 "| sed 's/INSERT INTO `TestMuguhwa` VALUES/INSERT INTO `TestMuguhwa` (`DEVICE`, `TIME`, `BEGIN`, `LAST`, `EVENT`, `ACTIVE`, `PIR`, `TOF`, `UV`, `MM`, `TEMP`) VALUES/' " .
                 "| mysql -u %s -p'%s' %s",
                 $conf['host'], $conf['username'], $conf['password'], $conf['database'],
@@ -581,20 +581,25 @@ class AnalyticsService
         return true;
     }
 
-    public static function RunLoadHourlyDataWithLog()
+    public static function RunLoadHourlyDataWithLog($request = null)
     {
         try {
-            Log::info('LoadHourlyData: Command started');
+            if($request->input('token') == '9f3c8a7d1e4b5a2c6d8f9e0b7a1c4e2f') {
+                Log::info('LoadHourlyData: Command started');
 
-            Artisan::call('app:load-hourly-data');
+                Artisan::call('app:load-hourly-data');
 
-            $output = Artisan::output();
+                $output = Artisan::output();
 
-            Log::info('LoadHourlyData: Command finished', [
-                'output' => $output
-            ]);
+                Log::info('LoadHourlyData: Command finished', [
+                    'output' => $output
+                ]);
 
-            return $output;
+                return $output;
+            } else {
+                return false;
+            }
+
 
         } catch (\Exception $e) {
 
