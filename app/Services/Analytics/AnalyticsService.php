@@ -424,7 +424,32 @@ class AnalyticsService
     }
 
     // Check temp issue
-    private static function TempIssue() {
+    // private static function TempIssue() {
+    //     DB::statement("
+    //         UPDATE device_6h_analytics a
+    //         JOIN (
+    //             SELECT s.device, s.temp
+    //             FROM device_logs_6h_staging s
+    //             INNER JOIN (
+    //                 SELECT device, MAX(time) AS last_time
+    //                 FROM device_logs_6h_staging
+    //                 GROUP BY device
+    //             ) x ON x.device = s.device AND x.last_time = s.time
+    //         ) last_row ON last_row.device = a.device
+    //         SET
+    //             a.temp_issue = CASE
+    //                 WHEN last_row.temp < 720 THEN 1
+    //                 ELSE 0
+    //             END,
+    //             a.decision_reason = CASE
+    //                 WHEN last_row.temp < 720 AND a.network_missing = 0
+    //                     THEN 'Temperature below threshold (<720)'
+    //                 ELSE a.decision_reason
+    //             END
+    //     ");
+    // }
+    private static function TempIssue()
+    {
         DB::statement("
             UPDATE device_6h_analytics a
             JOIN (
@@ -438,12 +463,13 @@ class AnalyticsService
             ) last_row ON last_row.device = a.device
             SET
                 a.temp_issue = CASE
-                    WHEN last_row.temp < 720 THEN 1
+                    WHEN last_row.temp < 720 OR last_row.temp > 3000 THEN 1
                     ELSE 0
                 END,
                 a.decision_reason = CASE
-                    WHEN last_row.temp < 720 AND a.network_missing = 0
-                        THEN 'Temperature below threshold (<720)'
+                    -- Parentheses are vital here to keep your AND logic intact
+                    WHEN (last_row.temp < 720 OR last_row.temp > 3000) AND a.network_missing = 0
+                        THEN 'Temperature out of range (<720 or >3000)'
                     ELSE a.decision_reason
                 END
         ");
@@ -644,49 +670,49 @@ class AnalyticsService
     // }
 
     public static function CheckPersistent3Days($request)
-{
-    $now = $request->time ? Carbon::parse($request->time) : Carbon::now();
-    $slotHour = floor($now->hour / 6) * 6;
-    $currentSlot = $now->copy()->startOfDay()->addHours($slotHour);
-    $currentDateStr = $currentSlot->toDateTimeString();
+    {
+        $now = $request->time ? Carbon::parse($request->time) : Carbon::now();
+        $slotHour = floor($now->hour / 6) * 6;
+        $currentSlot = $now->copy()->startOfDay()->addHours($slotHour);
+        $currentDateStr = $currentSlot->toDateTimeString();
 
-    $targetTimestamps = [
-        $currentDateStr,
-        $currentSlot->copy()->subDays(1)->toDateTimeString(),
-        $currentSlot->copy()->subDays(2)->toDateTimeString(),
-    ];
+        $targetTimestamps = [
+            $currentDateStr,
+            $currentSlot->copy()->subDays(1)->toDateTimeString(),
+            $currentSlot->copy()->subDays(2)->toDateTimeString(),
+        ];
 
-    // LOG: Check if these records actually exist in the DB at all
-    foreach($targetTimestamps as $ts) {
-        $exists = DB::table('device_6h_analytics')->where('clock_time', $ts)->exists();
-        if (!$exists) {
-            Log::warning("Data Missing: No records found for timestamp {$ts}. Persistent check will likely fail.");
+        // LOG: Check if these records actually exist in the DB at all
+        foreach($targetTimestamps as $ts) {
+            $exists = DB::table('device_6h_analytics')->where('clock_time', $ts)->exists();
+            if (!$exists) {
+                Log::warning("Data Missing: No records found for timestamp {$ts}. Persistent check will likely fail.");
+            }
         }
+
+        $failingDevices = DB::table('device_6h_analytics')
+            ->select('device')
+            ->whereIn('clock_time', $targetTimestamps)
+            ->where('network_missing', 1)
+            ->groupBy('device')
+            ->havingRaw('COUNT(*) = 3')
+            ->pluck('device');
+
+        if ($failingDevices->isNotEmpty()) {
+            DB::table('device_6h_analytics')
+                ->whereIn('device', $failingDevices)
+                ->where('clock_time', $currentDateStr)
+                ->update([
+                    'uv_persistent_fail' => 1,
+                    'final_color' => 'CYAN',
+                    'updated_at' => now()
+                ]);
+
+            Log::info("Success: Updated " . $failingDevices->count() . " devices to CYAN for the 9th.");
+        }
+
+        return $failingDevices;
     }
-
-    $failingDevices = DB::table('device_6h_analytics')
-        ->select('device')
-        ->whereIn('clock_time', $targetTimestamps)
-        ->where('network_missing', 1)
-        ->groupBy('device')
-        ->havingRaw('COUNT(*) = 3')
-        ->pluck('device');
-
-    if ($failingDevices->isNotEmpty()) {
-        DB::table('device_6h_analytics')
-            ->whereIn('device', $failingDevices)
-            ->where('clock_time', $currentDateStr)
-            ->update([
-                'uv_persistent_fail' => 1,
-                'final_color' => 'CYAN',
-                'updated_at' => now()
-            ]);
-
-        Log::info("Success: Updated " . $failingDevices->count() . " devices to CYAN for the 9th.");
-    }
-
-    return $failingDevices;
-}
 
     private static function ResolveFinalState($currentDate)
     {
