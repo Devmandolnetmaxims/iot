@@ -57,12 +57,14 @@ class AnalyticsRepository {
         // Color Details
         $counts = $data->countBy('final_color');
         $logDetails = collect([
-            ['color' => 'GREEN',   'description' => 'Healthy (UV ON)'],
-            ['color' => 'BLUE',    'description' => 'Network Missing'],
-            ['color' => 'CYAN',    'description' => 'Network Malfunction'],
-            ['color' => 'ORANGE',  'description' => 'Temp Problem'],
-            ['color' => 'YELLOW',  'description' => 'TOF / Blocked'],
-            ['color' => 'MAGENTA', 'description' => 'Hardware Failure'],
+            ['color' => 'GREEN',   'description' => '정상 (UV ON)'],
+            ['color' => 'BLUE',    'description' => '한쪽 WiFi'],
+            ['color' => 'CYAN',    'description' => 'Wifi 없음'],
+            ['color' => 'ORANGE',  'description' => '온도 이상'],
+            ['color' => 'YELLOW',  'description' => 'TOF / 막힘'],
+            ['color' => 'MAGENTA', 'description' => '거리감지'],
+            ['color' => 'RED', 'description' => 'PIR 이상'],
+            ['color' => 'BLACK', 'description' => '정비단'],
         ])->map(function ($item) use ($counts) {
             // Get count from our collection, default to 0 if color isn't present
             $item['count'] = $counts->get($item['color'], 0);

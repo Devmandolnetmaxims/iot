@@ -89,7 +89,9 @@ class AnalyticsService
             AnalyticsService::CalculatErrorState();
 
             $request->time = $from;
-            AnalyticsService::CheckPersistent3Days($request);
+            AnalyticsService::CheckDeviceDiagnostics($request);
+            // AnalyticsService::CheckPersistent3Days($request);
+            // AnalyticsService::ThreeDaysNetworkAnalytics($request);
             return true;
 
         } catch (\Throwable $e) {
@@ -325,6 +327,7 @@ class AnalyticsService
                     decision_reason,
                     uv_on_count_6h,
                     pir_on_count_6h,
+                    pir_off_count_6h,
                     temp_min,
                     temp_max,
                     temp_avg,
@@ -341,6 +344,7 @@ class AnalyticsService
                     CASE WHEN COUNT(s.device) = 0 THEN 'No data in this 6h window' ELSE NULL END,
                     SUM(CASE WHEN s.uv = 'ON' THEN 1 ELSE 0 END),
                     SUM(CASE WHEN s.pir = 'ON' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN s.rn <= 3000 AND s.pir = 'OFF' THEN 1 ELSE 0 END),
                     MIN(s.temp),
                     MAX(s.temp),
                     AVG(s.temp),
@@ -399,7 +403,7 @@ class AnalyticsService
 
             /* TOF fault count per device */
             JOIN (
-                SELECT device, SUM(mm BETWEEN 1 AND 30) AS tof_fault_count
+                SELECT device, SUM(mm BETWEEN 1 AND 40) AS tof_fault_count
                 FROM device_logs_6h_staging
                 GROUP BY device
             ) tc ON tc.device = a.device
@@ -408,14 +412,14 @@ class AnalyticsService
                 a.tof_fault_count = tc.tof_fault_count,
 
                 a.tof_issue = CASE
-                    WHEN lm.latest_mm BETWEEN 1 AND 30 THEN 1
+                    WHEN lm.latest_mm BETWEEN 1 AND 40 THEN 1
                     ELSE 0
                 END,
 
                 a.decision_reason = CASE
                     WHEN a.network_missing = 1 THEN a.decision_reason
                     WHEN lm.latest_mm BETWEEN 1 AND 30
-                        THEN 'TOF sensor fault (latest mm in 1–30 range)'
+                        THEN 'TOF sensor fault (latest mm in 1–40 range)'
                     ELSE a.decision_reason
                 END,
 
@@ -423,31 +427,6 @@ class AnalyticsService
         ");
     }
 
-    // Check temp issue
-    // private static function TempIssue() {
-    //     DB::statement("
-    //         UPDATE device_6h_analytics a
-    //         JOIN (
-    //             SELECT s.device, s.temp
-    //             FROM device_logs_6h_staging s
-    //             INNER JOIN (
-    //                 SELECT device, MAX(time) AS last_time
-    //                 FROM device_logs_6h_staging
-    //                 GROUP BY device
-    //             ) x ON x.device = s.device AND x.last_time = s.time
-    //         ) last_row ON last_row.device = a.device
-    //         SET
-    //             a.temp_issue = CASE
-    //                 WHEN last_row.temp < 720 THEN 1
-    //                 ELSE 0
-    //             END,
-    //             a.decision_reason = CASE
-    //                 WHEN last_row.temp < 720 AND a.network_missing = 0
-    //                     THEN 'Temperature below threshold (<720)'
-    //                 ELSE a.decision_reason
-    //             END
-    //     ");
-    // }
     private static function TempIssue()
     {
         DB::statement("
@@ -533,7 +512,7 @@ class AnalyticsService
             UPDATE device_6h_analytics a
             SET
                 a.uv_pass_1000 = 1,
-                a.decision_reason = 'UV ON detected in last 1000 records'
+                a.decision_reason = 'UV ON detected in last 3000 records'
             WHERE
                 (a.final_color IS NULL OR a.final_color = 'GREEN')
                 AND EXISTS (
@@ -550,7 +529,7 @@ class AnalyticsService
                     ) ranked
                     WHERE
                         ranked.device = a.device
-                        AND ranked.rn <= 1000
+                        AND ranked.rn <= 3000
                         AND TRIM(UPPER(ranked.uv)) = 'ON'
                 )
         ");
@@ -579,139 +558,99 @@ class AnalyticsService
                     ) ranked
                     WHERE
                         ranked.device = a.device
-                        AND ranked.rn <= 1000
+                        AND ranked.rn <= 3000
                         AND TRIM(UPPER(ranked.uv)) = 'ON'
                 )
         ");
     }
 
-    // public static function CheckPersistent3Days($request)
-    // {
-    //     $now = $request->date
-    //         ? Carbon::parse($request->date)
-    //         : Carbon::now();
-
-    //     // Current 6h window
-    //     $slotHour = floor($now->hour / 6) * 6;
-
-    //     $windowStart = $now->copy()
-    //         ->startOfDay()
-    //         ->addHours($slotHour);
-
-    //     $currentDate = $windowStart->toDateTimeString();
-
-    //     // Last 72 hours
-    //     $from = $windowStart->copy()
-    //         ->subHours(72)
-    //         ->toDateTimeString();
-
-    //     // Devices failing continuously
-    //     $failingDevices = DB::table('device_6h_analytics')
-    //         ->select('device')
-    //         ->whereBetween('clock_time', [$from, $currentDate])
-    //         ->where('network_missing', 1)
-    //         ->groupBy('device')
-    //         ->havingRaw('COUNT(*) >= 12') // 12 windows = 3 days
-    //         ->pluck('device');
-
-    //     if ($failingDevices->isNotEmpty()) {
-
-    //         DB::table('device_6h_analytics')
-    //             ->whereIn('device', $failingDevices)
-    //             ->where('clock_time', $currentDate)
-    //             ->update([
-    //                 'uv_persistent_fail' => 1,
-    //                 'final_color' => 'CYAN',
-    //                 'updated_at' => now()
-    //             ]);
-    //     }
-    // }
-
-    // public static function CheckPersistent3Days($request)
-    // {
-    //     // 1. Determine the current slot time (e.g., 2026-01-30 00:00:00)
-    //     $now = $request->time ? Carbon::parse($request->time) : Carbon::now();
-    //     $slotHour = floor($now->hour / 6) * 6;
-
-    //     $currentSlot = $now->copy()->startOfDay()->addHours($slotHour);
-    //     $currentDateStr = $currentSlot->toDateTimeString();
-
-    //     // 2. Build an array of the 4 exact timestamps (Today, -1d, -2d, -3d)
-    //     // This ignores 06:00, 12:00, 18:00 etc.
-    //     $targetTimestamps = [
-    //         $currentDateStr,
-    //         $currentSlot->copy()->subDays(1)->toDateTimeString(),
-    //         $currentSlot->copy()->subDays(2)->toDateTimeString(),
-    //         // $currentSlot->copy()->subDays(3)->toDateTimeString(),
-    //     ];
-
-    //     // 3. Find devices that failed at ALL 4 of these exact times
-    //     $failingDevices = DB::table('device_6h_analytics')
-    //         ->select('device')
-    //         ->whereIn('clock_time', $targetTimestamps) // Only look at these 4 exact moments
-    //         ->where('network_missing', 1)
-    //         ->groupBy('device')
-    //         ->havingRaw('COUNT(*) = 4') // Must have failed at all 4 timestamps
-    //         ->pluck('device');
-
-    //     // 4. Update the current slot record for those specific devices
-    //     if ($failingDevices->isNotEmpty()) {
-    //         DB::table('device_6h_analytics')
-    //             ->whereIn('device', $failingDevices)
-    //             ->where('clock_time', $currentDateStr)
-    //             ->update([
-    //                 'uv_persistent_fail' => 1,
-    //                 'final_color' => 'CYAN',
-    //                 'updated_at' => now()
-    //             ]);
-    //     }
-
-    //     return $failingDevices;
-    // }
-
-    public static function CheckPersistent3Days($request)
+    public static function CheckDeviceDiagnostics($request)
     {
         $now = $request->time ? Carbon::parse($request->time) : Carbon::now();
         $slotHour = floor($now->hour / 6) * 6;
         $currentSlot = $now->copy()->startOfDay()->addHours($slotHour);
         $currentDateStr = $currentSlot->toDateTimeString();
 
-        $targetTimestamps = [
-            $currentDateStr,
-            $currentSlot->copy()->subDays(1)->toDateTimeString(),
-            $currentSlot->copy()->subDays(2)->toDateTimeString(),
-        ];
+        Log::info("--- DIAGNOSTIC FIX START: $currentDateStr ---");
 
-        // LOG: Check if these records actually exist in the DB at all
-        foreach($targetTimestamps as $ts) {
-            $exists = DB::table('device_6h_analytics')->where('clock_time', $ts)->exists();
-            if (!$exists) {
-                Log::warning("Data Missing: No records found for timestamp {$ts}. Persistent check will likely fail.");
+        $deviceMeta = DB::table('DeviceInfo2')->get()->keyBy('DEVICE');
+
+        // 1. Fetch History (Up to 12 records)
+        $historyData = DB::table('device_6h_analytics') // Use your actual table name
+            ->where('clock_time', '<=', $currentDateStr)
+            ->orderBy('device')
+            ->orderBy('clock_time', 'desc')
+            ->get()
+            ->groupBy('device');
+
+        // 2. Map Persistent Status (STRICT 12/12)
+        $persistentMap = [];
+        foreach ($historyData as $deviceId => $slots) {
+            $recent12 = $slots->take(12);
+            // Only TRUE if exactly 12 records found AND all 12 are missing
+            $persistentMap[$deviceId] = ($recent12->count() === 12 && $recent12->where('network_missing', 1)->count() === 12);
+        }
+
+        // 3. Process current slot
+        $currentData = DB::table('device_6h_analytics')
+            ->where('clock_time', $currentDateStr)
+            ->get();
+
+        foreach ($currentData as $current) {
+            $deviceId = $current->device;
+            $meta = $deviceMeta->get($deviceId);
+            if (!$meta) continue;
+
+            $updatePayload = [];
+            $isPersistent = $persistentMap[$deviceId] ?? false;
+
+            // Check for any other hardware issues
+            $hasOtherIssue = (
+                $current->uv_pass_30 == 1 ||
+                $current->uv_pass_200 == 1 ||
+                $current->uv_pass_1000 == 1 ||
+                $current->temp_issue == 1 ||
+                $current->tof_issue == 1
+            );
+
+            if ($isPersistent) {
+                // Logic for BLUE/CYAN
+                if (in_array($meta->TYPE, ['U', 'T', 'BT', 'BU'])) {
+                    $partner = $deviceMeta->where('CAR', $meta->CAR)->where('DEVICE', '!=', $deviceId)->first();
+                    $partnerId = $partner ? $partner->DEVICE : null;
+                    $partnerIsPersistent = ($partnerId && ($persistentMap[$partnerId] ?? false));
+
+                    $updatePayload['final_color'] = $partnerIsPersistent ? 'CYAN' : 'BLUE';
+                } else {
+                    $updatePayload['final_color'] = 'CYAN';
+                }
+                $updatePayload['uv_persistent_fail'] = 1;
+            }
+            else {
+                // --- THE FIX: If NOT persistent, go GREEN if no other issues ---
+                if (!$hasOtherIssue) {
+                    $updatePayload['final_color'] = 'GREEN';
+                    $updatePayload['uv_persistent_fail'] = 0;
+
+                    if (in_array($deviceId, ['006', '007', '313', '314'])) {
+                        Log::info("Resetting $deviceId to GREEN (Fail streak < 12 and no other issues)");
+                    }
+                } else {
+                    if (in_array($deviceId, ['006', '007', '313', '314'])) {
+                        Log::info("Keeping $deviceId as is (Has other hardware issues)");
+                    }
+                }
+            }
+
+            if (!empty($updatePayload)) {
+                DB::table('device_6h_analytics')
+                    ->where('id', $current->id)
+                    ->update(array_merge($updatePayload, ['updated_at' => now()]));
             }
         }
 
-        $failingDevices = DB::table('device_6h_analytics')
-            ->select('device')
-            ->whereIn('clock_time', $targetTimestamps)
-            ->where('network_missing', 1)
-            ->groupBy('device')
-            ->havingRaw('COUNT(*) = 3')
-            ->pluck('device');
-
-        if ($failingDevices->isNotEmpty()) {
-            DB::table('device_6h_analytics')
-                ->whereIn('device', $failingDevices)
-                ->where('clock_time', $currentDateStr)
-                ->update([
-                    'uv_persistent_fail' => 1,
-                    'final_color' => 'CYAN',
-                    'updated_at' => now()
-                ]);
-
-            Log::info("Success: Updated " . $failingDevices->count() . " devices to CYAN for the 9th.");
-        }
-
-        return $failingDevices;
+        Log::info("--- DIAGNOSTIC FIX COMPLETED ---");
+        return true;
     }
 
     private static function ResolveFinalState($currentDate)
