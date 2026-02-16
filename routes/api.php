@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Member\MemberController;
 use App\Http\Controllers\Device\DeviceController;
 use App\Http\Controllers\DataLog\DataLogController;
 use App\Http\Controllers\Analytics\AnalyticsController;
@@ -53,6 +54,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/getDeviceColors', [AnalyticsController::class, 'getDeviceColors']);
         Route::post('/checkPersistent3Days', [AnalyticsController::class, 'checkPersistent3Days']);
     });
+
+    // Member routes
+    Route::prefix('members')->group(function () {
+        Route::get('/', [MemberController::class, 'memberLists']);
+        Route::get('/{id}', [MemberController::class, 'memberDetail']);
+        Route::put('/{id}', [MemberController::class, 'memberUpdate']);
+        Route::delete('/{id}', [MemberController::class, 'memberDelete']);
+    });
+});
+
+// Only admin routes
+Route::middleware('auth:sanctum', 'role:admin')->group(function () {
+    // Member routes
+    Route::prefix('admin/members')->group(function () {
+        Route::put('/{id}', [MemberController::class, 'memberStateUpdate']);
+    });
 });
 
 
@@ -60,12 +77,15 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/load1hrawdata', [AnalyticsController::class, 'runPostAnalyticsTask']);
 Route::get('/run6hrawdata', [AnalyticsController::class, 'run6hrawdata']);
 Route::get('/deleteOldData', [AnalyticsController::class, 'deleteOldData']);
+Route::post('/register', [MemberController::class, 'register']);
 
 // Default authenticated route
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+
+// Testing apis
 Route::get('/speed',function() {
     return "hasds";
 });
@@ -73,6 +93,5 @@ Route::get('/speed',function() {
 Route::get('test-external-db', function() {
     $connection = DB::connection('external_db')->table('DeviceInfo2')->get();
     dd($connection);
-
 });
 

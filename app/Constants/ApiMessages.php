@@ -7,8 +7,11 @@ class ApiMessages
     // Auth messages
     const LOGIN_SUCCESS = 'Login successful';
     const LOGOUT_SUCCESS = 'Logout successful';
+    const LOGOUT_ERROR = 'Logout error';
     const INVALID_CREDENTIALS = 'Invalid credentials';
     const UNAUTHORIZED_ADMIN = 'Unauthorized: Not an admin';
+    const INACTIVE_ACCOUNT = 'Inactive account';
+    const CANT_DELETE_ADMIN = 'Cannot delete admin';
 
     // General messages
     const SUCCESS = 'Success';
@@ -24,6 +27,7 @@ class ApiMessages
     const USER_CREATED = 'User created successfully';
     const USER_UPDATED = 'User updated successfully';
     const USER_DELETED = 'User deleted successfully';
+    const USER_GET_SUCCESS = 'User fetched successfully';
 
     // Example: password reset
     public const EMAIL_NOT_FOUND = 'No user found with this email.';
@@ -41,7 +45,7 @@ class ApiMessages
     public const DEVICE_DELETED = 'Device deleted successfully.';
     public const DEVICE_GET_SUCCESS = 'Device fetched successfully.';
     public const DEVICE_NOT_FOUND = 'Device not found.';
-    
+
     // Device Link message
     public const DEVICE_LINK_CREATED = 'Device link created successfully.';
     public const DEVICE_LINK_UPDATED = 'Device link updated successfully.';
@@ -51,4 +55,9 @@ class ApiMessages
 
     // DataLog messages
     public const DATA_LOG_GET_SUCCESS = 'Data log fetched successfully.';
+
+    // Registration messages
+    public const REGISTRATION_SUCCESS = 'Registration successful';
+    public const REGISTRATION_FAILED = 'Registration failed';
+
 }
