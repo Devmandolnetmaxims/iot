@@ -11,6 +11,7 @@ class ApiMessages
     const INVALID_CREDENTIALS = 'Invalid credentials';
     const UNAUTHORIZED_ADMIN = 'Unauthorized: Not an admin';
     const INACTIVE_ACCOUNT = 'Inactive account';
+    const CANT_DELETE_ADMIN = 'Cannot delete admin';
 
     // General messages
     const SUCCESS = 'Success';

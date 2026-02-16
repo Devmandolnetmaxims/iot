@@ -28,4 +28,8 @@ class MemberController extends Controller
     public function memberStateUpdate(Request $request, $id) {
         return MemberRepository::MemberStateUpdate($request, $id);
     }
+
+    public function memberDelete($id) {
+        return MemberRepository::MemberDelete($id);
+    }
 }

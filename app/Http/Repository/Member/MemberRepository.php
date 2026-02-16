@@ -238,4 +238,27 @@ class MemberRepository
         }
     }
 
+    public static function MemberDelete($id)
+    {
+        $self = new self;
+        try {
+            if($id == 1) {
+                return $self->errorResponse(null, ApiMessages::CANT_DELETE_ADMIN, 403);
+            }
+            $user = User::find($id);
+            // Destroted the email in formate of user_id_email
+            $user->email = $user->id . "_" . $user->email;
+            $user->save();
+
+            if(empty($user)) {
+                return $self->errorResponse(null, ApiMessages::USER_NOT_FOUND, 404);
+            }
+            $user->delete();
+            return $self->successResponse(null, ApiMessages::USER_DELETED, 200);
+        } catch (Exception $e) {
+            Log::error("User Delete Failed: " . $e->getMessage());
+            return $self->errorResponse(null, $e->getMessage(), 500);
+        }
+    }
+
 }
