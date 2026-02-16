@@ -47,4 +47,13 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-}
+
+    /**
+     * Get the details associated with the user.
+     */
+    public function userDetails()
+    {
+        // hasOne(RelatedModel, foreign_key, local_key)
+        return $this->hasOne(UserDetail::class, 'user_id', 'id');
+    }
+    }
