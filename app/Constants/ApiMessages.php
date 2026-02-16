@@ -7,8 +7,10 @@ class ApiMessages
     // Auth messages
     const LOGIN_SUCCESS = 'Login successful';
     const LOGOUT_SUCCESS = 'Logout successful';
+    const LOGOUT_ERROR = 'Logout error';
     const INVALID_CREDENTIALS = 'Invalid credentials';
     const UNAUTHORIZED_ADMIN = 'Unauthorized: Not an admin';
+    const INACTIVE_ACCOUNT = 'Inactive account';
 
     // General messages
     const SUCCESS = 'Success';

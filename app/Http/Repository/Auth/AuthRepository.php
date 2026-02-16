@@ -21,13 +21,18 @@ class AuthRepository
     {
         $self = new self;
         // Find user by email
-        $user = User::where('email', $request->email)->first();
+        $user = User::with(['roles','userDetails'])->where('email', $request->email)->first();
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return $self->errorResponse(null, ApiMessages::INVALID_CREDENTIALS, 401);
         }
 
         if (! $user->hasRole('admin')) {
-            return $self->errorResponse(null, ApiMessages::UNAUTHORIZED_ADMIN, 403);
+            // return $self->errorResponse(null, ApiMessages::UNAUTHORIZED_ADMIN, 403);
+            // check for status from user details
+            $status = $user->userDetails->status;
+            if ($status == 0) {
+                return $self->errorResponse(null, ApiMessages::INACTIVE_ACCOUNT, 403);
+            }
         }
 
         $token = $user->createToken('admin-token')->plainTextToken;
