@@ -177,7 +177,7 @@ class AnalyticsService
                 "mysqldump -h %s -u %s -p'%s' --no-tablespaces %s TestMuguhwa " .
                 "--where=\"TIME >= '%s' AND TIME < '%s'\" " .
                 "--no-create-info --single-transaction --quick --skip-extended-insert --compact" .
-                "| sed 's/INSERT INTO `TestMuguhwa` VALUES/INSERT INTO `TestMuguhwa` (`DEVICE`, `TIME`, `BEGIN`, `LAST`, `EVENT`, `ACTIVE`, `PIR`, `TOF`, `UV`, `MM`, `TEMP`) VALUES/' " .
+                "| sed 's/INSERT INTO `TestMuguhwa` VALUES/INSERT INTO `TestMuguhwa` (`DEVICE`, `TIME`, `BEGIN`, `LAST`, `EVENT`, `ACTIVE`, `PIR`, `TOF`, `UV`, `MM`, `TEMP`, `IP_ADDR`) VALUES/' " .
                 "| mysql -u %s -p'%s' %s",
                 $conf['host'], $conf['username'], $conf['password'], $conf['database'],
                 $fromStr, $toString,
