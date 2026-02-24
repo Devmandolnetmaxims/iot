@@ -12,6 +12,7 @@ class ApiMessages
     const UNAUTHORIZED_ADMIN = 'Unauthorized: Not an admin';
     const INACTIVE_ACCOUNT = 'Inactive account';
     const CANT_DELETE_ADMIN = 'Cannot delete admin';
+    const PROFILE_SUCCESS = 'Profile fetched successfully';
 
     // General messages
     const SUCCESS = 'Success';
