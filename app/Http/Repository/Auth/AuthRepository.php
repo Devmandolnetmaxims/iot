@@ -121,4 +121,18 @@ class AuthRepository
 
         return $self->successResponse(null, ApiMessages::PASSWORD_RESET_SUCCESS, 200);
     }
+
+    public static function Profile($request)
+    {
+        $self = new self;
+        $user = $request->user();
+        return $self->successResponse([
+            'user' => [
+                'id' => $user->id,
+                'name' => ucfirst($user->name),
+                'email' => $user->email,
+                'roles' => $user->roles->pluck('name')->first(),
+            ],
+        ], ApiMessages::PROFILE_SUCCESS, 200);
+    }
 }

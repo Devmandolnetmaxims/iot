@@ -55,13 +55,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/checkPersistent3Days', [AnalyticsController::class, 'checkPersistent3Days']);
     });
 
-    // Member routes
-    Route::prefix('members')->group(function () {
-        Route::get('/', [MemberController::class, 'memberLists']);
-        Route::get('/{id}', [MemberController::class, 'memberDetail']);
-        Route::put('/{id}', [MemberController::class, 'memberUpdate']);
-        Route::delete('/{id}', [MemberController::class, 'memberDelete']);
-    });
+    // Profile routes
+    Route::get('/profile', [AuthController::class, 'profile']);
 });
 
 // Only admin routes
@@ -69,6 +64,14 @@ Route::middleware('auth:sanctum', 'role:admin')->group(function () {
     // Member routes
     Route::prefix('admin/members')->group(function () {
         Route::put('/{id}', [MemberController::class, 'memberStateUpdate']);
+    });
+
+     // Member routes
+    Route::prefix('members')->group(function () {
+        Route::get('/', [MemberController::class, 'memberLists']);
+        Route::get('/{id}', [MemberController::class, 'memberDetail']);
+        Route::put('/{id}', [MemberController::class, 'memberUpdate']);
+        Route::delete('/{id}', [MemberController::class, 'memberDelete']);
     });
 });
 
