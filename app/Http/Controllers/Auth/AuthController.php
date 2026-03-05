@@ -32,4 +32,9 @@ class AuthController extends Controller
     public function ResetPassword(ResetPasswordRequest $request) {
         return AuthRepository::resetPassword($request);
     }
+
+    // Get user profiles
+    public function profile(Request $request) {
+        return AuthRepository::Profile($request);
+    }
 }

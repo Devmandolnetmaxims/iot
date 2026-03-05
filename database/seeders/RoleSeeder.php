@@ -15,5 +15,7 @@ class RoleSeeder extends Seeder
     {
         Role::firstOrCreate(['name' => 'admin']);
         $this->command->info('✅ Admin role created.');
+        Role::firstOrCreate(['name' => 'member']);
+        $this->command->info('✅ Member role created.');
     }
 }

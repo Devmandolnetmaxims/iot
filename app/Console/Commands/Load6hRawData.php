@@ -38,4 +38,6 @@ class Load6hRawData extends Command
             $this->error('Raw data not loaded.');
         }
     }
+
+
 }
