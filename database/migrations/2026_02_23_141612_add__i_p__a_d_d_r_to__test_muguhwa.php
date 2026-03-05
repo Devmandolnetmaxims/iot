@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('TestMuguhwa', function (Blueprint $table) {
-            $table->string('IP_ADDR')->nullable()->after('TEMP');
-        });
+        if (!Schema::hasColumn('TestMuguhwa', 'IP_ADDR')) {
+            Schema::table('TestMuguhwa', function (Blueprint $table) {
+                $table->string('IP_ADDR')->nullable()->after('TEMP');
+            });
+        }
     }
 
     /**
